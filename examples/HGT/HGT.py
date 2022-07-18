@@ -5,6 +5,7 @@ import math
 import torch
 import torch.nn as nn
 import pandas as pd
+import nvtx
 
 from graphiler import EdgeBatchDummy, NodeBatchDummy, mpdfg_builder, update_all
 from graphiler.utils import load_data, setup, check_equal, bench, hetero_dataset, DEFAULT_DIM, init_log, empty_cache
@@ -144,12 +145,14 @@ class HGTLayer_simplified(nn.Module):
         g.ntype_data['a_weight'] = self.a_weight
 
         if flag == "compile":
+            range_id = nvtx.start_range("my_code_range")
             if BREAK_FLAG == 0:
                 update_all(g, mpdfg_compile, msg_params=(self.sqrt_dk,))
             elif BREAK_FLAG == 1:
                 update_all(g, mpdfg_plus_reorder, msg_params=(self.sqrt_dk,))
             else:
                 update_all(g, mpdfg, msg_params=(self.sqrt_dk,))
+            nvtx.end_range(range_id)
         elif flag == "batch":
             # use dgl built-in functions as dgl-batch baseline
             g.apply_edges(self.message_func)
@@ -195,62 +198,71 @@ def profile(dataset, feat_dim, repeat=1000):
         g, _ = load_data(dataset, feat_dim, prepare=True)
         g = g.to(device)
         net = HGT(feat_dim, DEFAULT_DIM,
-                  DEFAULT_DIM, g.num_ntypes, g.num_rels).to(device)
+                  DEFAULT_DIM, g.num_ntypes, g.num_rels).to(device)#DEFAULT_DIM, len(g._ntypes), len(g._etypes)).to(device)
         net.eval()
         with torch.no_grad():
-            compile_res = bench(net=net, net_params=(
-                g, features, "compile"), tag="5-Graphiler", nvprof=False, repeat=repeat, memory=True, log=log)
-            res = bench(net=net, net_params=(
+            with nvtx.annotate("graphiler", color="orange"):
+                #range_id = nvtx.start_range("my_code_range")
+                compile_res = bench(net=net, net_params=(
+                    g, features, "compile"), tag="5-Graphiler", nvprof=False, repeat=repeat, memory=True, log=log)
+                #nvtx.end_range(range_id)
+            with nvtx.annotate("DGL-bmm", color="green"):
+                res = bench(net=net, net_params=(
                 g, features, "batch"), tag="3-DGL-bmm", nvprof=False, repeat=repeat, memory=True, log=log)
             check_equal(compile_res, res)
-            bench(net=net, net_params=(g, features, "naive"),
+            with nvtx.annotate("baseline", color="yellow"):
+                bench(net=net, net_params=(g, features, "naive"),
                   tag="0-DGL-UDF", nvprof=False, repeat=repeat, memory=True, log=log)
         del g, net, compile_res, res
 
     @empty_cache
     def run_dgl_slice(g_hetero, features):
-        g_hetero = g_hetero.to(device)
-        node_dict = {}
-        edge_dict = {}
-        for ntype in g_hetero.ntypes:
-            node_dict[ntype] = len(node_dict)
-        for etype in g_hetero.canonical_etypes:
-            edge_dict[etype] = len(edge_dict)
-        net_hetero = HGT_DGLHetero(node_dict, edge_dict,
-                                   feat_dim, DEFAULT_DIM, DEFAULT_DIM).to(device)
-        net_hetero.eval()
-        with torch.no_grad():
-            bench(net=net_hetero, net_params=(g_hetero, g_hetero.ndata['h']),
-                  tag="1-DGL-slice", nvprof=False, repeat=repeat, memory=True, log=log)
-        del g_hetero, node_dict, edge_dict, net_hetero
+        with nvtx.annotate("dgl-slice", color="purple"):
+            g_hetero = g_hetero.to(device)
+            node_dict = {}
+            edge_dict = {}
+            for ntype in g_hetero.ntypes:
+                node_dict[ntype] = len(node_dict)
+            for etype in g_hetero.canonical_etypes:
+                edge_dict[etype] = len(edge_dict)
+            net_hetero = HGT_DGLHetero(node_dict, edge_dict,
+                                    feat_dim, DEFAULT_DIM, DEFAULT_DIM).to(device)
+            net_hetero.eval()
+            with torch.no_grad():
+                bench(net=net_hetero, net_params=(g_hetero, g_hetero.ndata['h']),
+                    tag="1-DGL-slice", nvprof=False, repeat=repeat, memory=True, log=log)
+            del g_hetero, node_dict, edge_dict, net_hetero
 
     @empty_cache
     def run_pyg_slice(g, features):
-        u, v = g.edges()
-        adj = torch.stack([u, v]).to(device)
-        src_type, dst_type = get_ntype(
-            adj, g.edata['_TYPE'], g.ndata['_TYPE'], g.num_rels)
-        net_pyg_slice = HGT_PyG(feat_dim, DEFAULT_DIM,
-                                DEFAULT_DIM, g.num_ntypes, g.num_rels, mode='slice').to(device)
-        net_pyg_slice.eval()
-        with torch.no_grad():
-            bench(net=net_pyg_slice, net_params=(adj, features, g.edata['_TYPE'], g.ndata['_TYPE'], src_type, dst_type),
-                  tag="2-PyG-slice", nvprof=False, repeat=repeat, memory=True, log=log)
-        del u, v, adj, src_type, dst_type, net_pyg_slice
+
+        with nvtx.annotate("pyg-slice", color="blue"):
+            u, v = g.edges()
+            adj = torch.stack([u, v]).to(device)
+            src_type, dst_type = get_ntype(
+                adj, g.edata['_TYPE'], g.ndata['_TYPE'], g.num_rels)
+            net_pyg_slice = HGT_PyG(feat_dim, DEFAULT_DIM,
+                                    DEFAULT_DIM, g.num_ntypes, g.num_rels, mode='slice').to(device)
+            net_pyg_slice.eval()
+            with torch.no_grad():
+                bench(net=net_pyg_slice, net_params=(adj, features, g.edata['_TYPE'], g.ndata['_TYPE'], src_type, dst_type),
+                    tag="2-PyG-slice", nvprof=False, repeat=repeat, memory=True, log=log)
+            del u, v, adj, src_type, dst_type, net_pyg_slice
 
     @empty_cache
     def run_pyg_bmm(g, features):
-        u, v = g.edges()
-        adj = torch.stack([u, v]).to(device)
-        src_type, dst_type = get_ntype(
-            adj, g.edata['_TYPE'], g.ndata['_TYPE'], g.num_rels)
-        net_pyg_bmm = HGT_PyG(feat_dim, DEFAULT_DIM,
-                              DEFAULT_DIM, g.num_ntypes, g.num_rels, mode='bmm').to(device)
-        net_pyg_bmm.eval()
-        with torch.no_grad():
-            bench(net=net_pyg_bmm, net_params=(adj, features, g.edata['_TYPE'].to(device), g.ndata['_TYPE'].to(device), src_type, dst_type),
-                  tag="4-PyG-bmm", nvprof=False, repeat=repeat, memory=True, log=log)
-        del u, v, adj, src_type, dst_type, net_pyg_bmm
+        with nvtx.annotate("pyg-bmm", color="red"):
+            u, v = g.edges()
+            adj = torch.stack([u, v]).to(device)
+            src_type, dst_type = get_ntype(
+                adj, g.edata['_TYPE'], g.ndata['_TYPE'], g.num_rels)
+            net_pyg_bmm = HGT_PyG(feat_dim, DEFAULT_DIM,
+                                DEFAULT_DIM, g.num_ntypes, g.num_rels, mode='bmm').to(device)
+            net_pyg_bmm.eval()
+            with torch.no_grad():
+                bench(net=net_pyg_bmm, net_params=(adj, features, g.edata['_TYPE'].to(device), g.ndata['_TYPE'].to(device), src_type, dst_type),
+                    tag="4-PyG-bmm", nvprof=False, repeat=repeat, memory=True, log=log)
+            del u, v, adj, src_type, dst_type, net_pyg_bmm
 
     run_baseline_graphiler(g, features)
     run_dgl_slice(g_hetero, features)
@@ -287,7 +299,8 @@ def breakdown(dataset, feat_dim, repeat=1000):
 
 
 if __name__ == '__main__':
-    repeat = int(os.environ.get('REPEAT', 50))
+    #repeat = int(os.environ.get('REPEAT', 50))
+    repeat = 1
     if len(sys.argv) != 3:
         print("usage: python HGT.py [dataset] [feat_dim]")
         exit()

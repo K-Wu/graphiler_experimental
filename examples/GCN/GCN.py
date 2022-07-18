@@ -4,6 +4,7 @@ import torch
 import torch.nn as nn
 import pandas as pd
 import torch.nn.functional as F
+import nvtx
 
 from torch_sparse import SparseTensor
 
@@ -73,36 +74,40 @@ def profile(dataset, feat_dim, repeat=1000):
                   out_dim=DEFAULT_DIM).to(device)
         net.eval()
         with torch.no_grad():
-            compile_res = bench(net=net, net_params=(
-                g, features, True), tag="3-Graphiler", nvprof=False, repeat=repeat, memory=True, log=log)
-            res = bench(net=net, net_params=(g, features, False),
+            with nvtx.annotate("graphiler", color="orange"):
+                compile_res = bench(net=net, net_params=(
+                    g, features, True), tag="3-Graphiler", nvprof=False, repeat=repeat, memory=True, log=log)
+            with nvtx.annotate("baseline", color="yellow"):
+                res = bench(net=net, net_params=(g, features, False),
                         tag="0-DGL-UDF", nvprof=False, repeat=repeat, memory=True, log=log)
             check_equal(compile_res, res)
         del g, net, compile_res, res
 
     @empty_cache
     def run_pyg(g, features):
-        u, v = g.edges()
-        adj = SparseTensor(row=u, col=v, sparse_sizes=(
-            g.num_src_nodes(), g.num_dst_nodes())).to(device)
-        net_pyg = GCN_PyG(in_dim=feat_dim, hidden_dim=DEFAULT_DIM,
-                          out_dim=DEFAULT_DIM).to(device)
-        net_pyg.eval()
-        with torch.no_grad():
-            bench(net=net_pyg, net_params=(features, adj),
-                  tag="2-PyG-primitives", nvprof=False, repeat=repeat, memory=True, log=log)
-        return u, v, adj, net_pyg
+        with nvtx.annotate("pyg", color="blue"):
+            u, v = g.edges()
+            adj = SparseTensor(row=u, col=v, sparse_sizes=(
+                g.num_src_nodes(), g.num_dst_nodes())).to(device)
+            net_pyg = GCN_PyG(in_dim=feat_dim, hidden_dim=DEFAULT_DIM,
+                            out_dim=DEFAULT_DIM).to(device)
+            net_pyg.eval()
+            with torch.no_grad():
+                bench(net=net_pyg, net_params=(features, adj),
+                    tag="2-PyG-primitives", nvprof=False, repeat=repeat, memory=True, log=log)
+            return u, v, adj, net_pyg
 
     @empty_cache
     def run_dgl(g, features):
-        g = g.to(device)
-        net_dgl = GCN_DGL(in_dim=feat_dim, hidden_dim=DEFAULT_DIM,
-                          out_dim=DEFAULT_DIM).to(device)
-        net_dgl.eval()
-        with torch.no_grad():
-            bench(net=net_dgl, net_params=(g, features),
-                  tag="1-DGL-primitives", nvprof=False, repeat=repeat, memory=True, log=log)
-
+        with nvtx.annotate("dgl", color="purple"):
+            g = g.to(device)
+            net_dgl = GCN_DGL(in_dim=feat_dim, hidden_dim=DEFAULT_DIM,
+                            out_dim=DEFAULT_DIM).to(device)
+            net_dgl.eval()
+            with torch.no_grad():
+                bench(net=net_dgl, net_params=(g, features),
+                    tag="1-DGL-primitives", nvprof=False, repeat=repeat, memory=True, log=log)
+    
     run_baseline_and_graphiler(g, features)
     run_pyg(g, features)
     run_dgl(g, features)

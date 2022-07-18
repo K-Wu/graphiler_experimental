@@ -9,6 +9,8 @@
 #include <torch/csrc/jit/passes/constant_propagation.h>
 #include <torch/csrc/jit/passes/dead_code_elimination.h>
 #include <torch/csrc/jit/passes/inliner.h>
+#include <torch/csrc/jit/runtime/autodiff.h>
+#include <torch/csrc/jit/jit_log.h>
 
 #include "../../include/mpdfg.h"
 
@@ -17,4 +19,5 @@ void dedup(std::shared_ptr<torch::jit::Graph> &graph);
 void split(std::shared_ptr<MPDFGAnnotation> &mpdfg);
 void reorder(std::shared_ptr<MPDFGAnnotation> &mpdfg);
 void fusion(std::shared_ptr<MPDFGAnnotation> &mpdfg);
+void backpropemitter(std::shared_ptr<MPDFGAnnotation> &mpdfg);
 } // namespace graphiler

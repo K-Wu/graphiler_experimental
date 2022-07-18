@@ -9,6 +9,7 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
   m.def("split", &split, "transform concat_mul to split_mul_sum");
   m.def("reorder", &reorder, "broadcast reordering");
   m.def("fusion", &fusion, "broadcast fusion");
+  m.def("backpropemitter", &backpropemitter, "backpropemitter");
   // using pybind because CustomClassHolder is managed by c10::intrusive_ptr
   // which is not compatible with torch::jit::Graph
   pybind11::class_<MPDFGAnnotation, std::shared_ptr<MPDFGAnnotation>>(

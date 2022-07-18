@@ -5,6 +5,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import pandas as pd
+import nvtx
 
 from graphiler import EdgeBatchDummy, NodeBatchDummy, mpdfg_builder, update_all
 from graphiler.utils import load_data, setup, check_equal, bench, hetero_dataset, DEFAULT_DIM, init_log, empty_cache
@@ -52,7 +53,9 @@ class RGCNLayer(nn.Module):
         g.edata['norm'] = norm
         g.etype_data['weight'] = self.weight
         if compile:
+            range_id = nvtx.start_range("my_code_range")
             update_all(g, mpdfg)
+            nvtx.end_range(range_id)
         else:
             g.update_all(self.message_func, reduce_func)
             # use built-in as the DGL-bmm baseline
@@ -91,62 +94,70 @@ def profile(dataset, feat_dim, repeat=1000):
                    feat_dim, g.num_rels).to(device)
         net.eval()
         with torch.no_grad():
-            compile_res = bench(net=net, net_params=(
-                g, features, norm, True), tag="5-Graphiler", nvprof=False, repeat=repeat, memory=True, log=log)
-            res = bench(net=net, net_params=(g, features, norm, False),
+            with nvtx.annotate("GRAPHILER", color="orange"):
+                #range_id = nvtx.start_range("my_code_range")
+                compile_res = bench(net=net, net_params=(
+                    g, features, norm, True), tag="5-Graphiler", nvprof=False, repeat=repeat, memory=True, log=log)
+                #nvtx.end_range(range_id)
+            with nvtx.annotate("baseline", color="yellow"):
+                res = bench(net=net, net_params=(g, features, norm, False),
                         tag="0-DGL-UDF", nvprof=False, repeat=repeat, memory=True, log=log)
             check_equal(compile_res, res)
         del g, norm, net, compile_res, res
 
     @empty_cache
     def run_dgl_hetero(g_hetero, features):
-        g_hetero = g_hetero.to(device)
-        rel_names = list(set(g_hetero.etypes))
-        net_dgl_hetero = RGCN_DGL_hetero(
-            feat_dim, DEFAULT_DIM, feat_dim, rel_names, len(rel_names)).to(device)
-        net_dgl_hetero.eval()
-        with torch.no_grad():
-            bench(net=net_dgl_hetero, net_params=(
-                g_hetero, g_hetero.ndata['h']), tag="1-DGL-slice", nvprof=False, repeat=repeat, memory=True, log=log)
-        del g_hetero, rel_names, net_dgl_hetero
+        with nvtx.annotate("dgl-hetero"):
+            g_hetero = g_hetero.to(device)
+            rel_names = list(set(g_hetero.etypes))
+            net_dgl_hetero = RGCN_DGL_hetero(
+                feat_dim, DEFAULT_DIM, feat_dim, rel_names, len(rel_names)).to(device)
+            net_dgl_hetero.eval()
+            with torch.no_grad():
+                bench(net=net_dgl_hetero, net_params=(
+                    g_hetero, g_hetero.ndata['h']), tag="1-DGL-slice", nvprof=False, repeat=repeat, memory=True, log=log)
+            del g_hetero, rel_names, net_dgl_hetero
 
     @empty_cache
     def run_pyg_bmm(g, features):
-        edge_type = g.edata['_TYPE']
-        u, v = g.edges()
-        adj = torch.stack([u, v]).to(device)
-        net_pyg_bmm = RGCN_PyG(feat_dim, DEFAULT_DIM,
-                               DEFAULT_DIM, g.num_rels, mode='bmm').to(device)
-        net_pyg_bmm.eval()
-        with torch.no_grad():
-            bench(net=net_pyg_bmm, net_params=(adj, features, edge_type),
-                  tag="4-PyG-bmm", nvprof=False, repeat=repeat, memory=True, log=log)
-        del edge_type, u, v, adj, net_pyg_bmm
+        with nvtx.annotate("pyg-bmm", color="red"):
+            edge_type = g.edata['_TYPE']
+            u, v = g.edges()
+            adj = torch.stack([u, v]).to(device)
+            net_pyg_bmm = RGCN_PyG(feat_dim, DEFAULT_DIM,
+                                DEFAULT_DIM, g.num_rels, mode='bmm').to(device)
+            net_pyg_bmm.eval()
+            with torch.no_grad():
+                bench(net=net_pyg_bmm, net_params=(adj, features, edge_type),
+                    tag="4-PyG-bmm", nvprof=False, repeat=repeat, memory=True, log=log)
+            del edge_type, u, v, adj, net_pyg_bmm
 
     @empty_cache
     def run_dgl_bmm(g, features):
-        g = g.to(device)
-        norm = torch.rand(g.num_edges(), 1).to(device)
-        net_dgl = RGCN_DGL(
-            feat_dim, DEFAULT_DIM, feat_dim, g.num_rels).to(device)
-        net_dgl.eval()
-        with torch.no_grad():
-            bench(net=net_dgl, net_params=(
-                g, features, g.edata['_TYPE'], norm), tag="3-DGL-bmm", nvprof=False, repeat=repeat, memory=True, log=log)
-        del g, norm, net_dgl
+        with nvtx.annotate("dgl-bmm", color="purple"):
+            g = g.to(device)
+            norm = torch.rand(g.num_edges(), 1).to(device)
+            net_dgl = RGCN_DGL(
+                feat_dim, DEFAULT_DIM, feat_dim, g.num_rels).to(device)
+            net_dgl.eval()
+            with torch.no_grad():
+                bench(net=net_dgl, net_params=(
+                    g, features, g.edata['_TYPE'], norm), tag="3-DGL-bmm", nvprof=False, repeat=repeat, memory=True, log=log)
+            del g, norm, net_dgl
 
     @empty_cache
     def run_pyg_slice(g, features):
-        edge_type = g.edata['_TYPE']
-        u, v = g.edges()
-        adj = torch.stack([u, v]).to(device)
-        net_pyg_slice = RGCN_PyG(feat_dim, DEFAULT_DIM,
-                                 DEFAULT_DIM, g.num_rels, mode='slice').to(device)
-        net_pyg_slice.eval()
-        with torch.no_grad():
-            bench(net=net_pyg_slice, net_params=(adj, features, edge_type),
-                  tag="2-PyG-slice", nvprof=False, repeat=repeat, memory=True, log=log)
-        del edge_type, u, v, adj, net_pyg_slice
+        with nvtx.annotate("pyg-slice", color="blue"):
+            edge_type = g.edata['_TYPE']
+            u, v = g.edges()
+            adj = torch.stack([u, v]).to(device)
+            net_pyg_slice = RGCN_PyG(feat_dim, DEFAULT_DIM,
+                                    DEFAULT_DIM, g.num_rels, mode='slice').to(device)
+            net_pyg_slice.eval()
+            with torch.no_grad():
+                bench(net=net_pyg_slice, net_params=(adj, features, edge_type),
+                    tag="2-PyG-slice", nvprof=False, repeat=repeat, memory=True, log=log)
+            del edge_type, u, v, adj, net_pyg_slice
 
     run_baseline_graphiler(g, features)
     run_dgl_bmm(g, features)
@@ -158,7 +169,8 @@ def profile(dataset, feat_dim, repeat=1000):
 
 
 if __name__ == '__main__':
-    repeat = int(os.environ.get('REPEAT', 50))
+    #repeat = int(os.environ.get('REPEAT', 50))
+    repeat = 1
     if len(sys.argv) != 3:
         print("usage: python GCN.py [dataset] [feat_dim]")
         exit()

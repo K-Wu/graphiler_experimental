@@ -1,7 +1,8 @@
-from graphiler.mpdfg import split, reorder, fusion
+from graphiler.mpdfg import split, reorder, fusion, backpropemitter
 
 
 def optimizer(mpdfg, opt_level):
+    backpropemitter(mpdfg)
     if opt_level == 0:
         return
     if opt_level > 0:
@@ -13,4 +14,5 @@ def optimizer(mpdfg, opt_level):
         for _ in range(3):
             reorder(mpdfg)
             fusion(mpdfg)
+    
     return

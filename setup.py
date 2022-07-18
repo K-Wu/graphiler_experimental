@@ -16,7 +16,8 @@ setup(
             'src/optimizer/dedup.cpp',
             'src/optimizer/split.cpp',
             'src/optimizer/reorder.cpp',
-            'src/optimizer/fusion.cpp'
+            'src/optimizer/fusion.cpp',
+            'src/optimizer/backpropemitter.cpp'
         ]),
     ],
     cmdclass={

@@ -109,7 +109,7 @@ def profile(dataset, feat_dim, repeat=1000):
         g, _ = load_data(dataset, feat_dim, prepare=True)
         g = g.to(device)
         net = RGATSingleLayer(in_dim=feat_dim, 
-                  out_dim=DEFAULT_DIM, num_rels = g.num_rels).to(device)
+                  out_dim=DEFAULT_DIM, num_rels = len(g.canonical_etypes)).to(device)
         net.eval()
         with torch.no_grad():
             with nvtx.annotate("graphiler", color="orange"):
@@ -162,7 +162,7 @@ def breakdown(dataset, feat_dim, repeat=1000):
     g, features = g.to(device), features.to(device)
 
     net = RGATSingleLayer(in_dim=feat_dim, 
-              out_dim=DEFAULT_DIM, num_rels = g.num_rels).to(device)
+              out_dim=DEFAULT_DIM, num_rels = len(g.canonical_etypes)).to(device)
     net.eval()
     with torch.no_grad():
         bench(net=net, net_params=(g, features, False),

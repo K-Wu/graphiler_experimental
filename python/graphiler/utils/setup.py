@@ -23,6 +23,10 @@ def load_data(name, feat_dim=DEFAULT_DIM, prepare=True, to_homo=True):
     if name == "arxiv":
         dataset = DglNodePropPredDataset(name="ogbn-arxiv")
         g = dataset[0][0]
+        # isinstance(g, dgl.DGLHeteroGraph)
+        # g.canonical_etypes = [('_N', '_E', '_N')]
+        # g.ntypes = ['_N']
+        # g.etypes = ['_E']
     elif name == "proteins":
         dataset = DglNodePropPredDataset(name="ogbn-proteins")
         g = dataset[0][0]
@@ -42,6 +46,10 @@ def load_data(name, feat_dim=DEFAULT_DIM, prepare=True, to_homo=True):
         g = dgl.graph(([0, 0, 0, 1, 1, 2], [0, 1, 2, 1, 2, 2]))
     elif name == 'aifb':
         dataset = AIFBDataset()
+        # isinstance(g, dgl.DGLHeteroGraph)
+        # g.canonical_etypes = [('Forschungsgebiete', 'ontology#dealtWithIn', 'Projekte'), ('Forschungsgebiete', 'ontology#isWorkedOnBy', 'Personen'), ('Forschungsgebiete', 'ontology#name', '_Literal'), ('Forschungsgebiete', 'rdftype', '_Literal'), ...]
+        # g.etypes = ['ontology#dealtWithIn', 'ontology#isWorkedOnBy', 'ontology#name', 'rdftype', 'rev-ontology#isAbout', 'rev-ontology#isAbout', 'ontology#carriesOut', 'ontology#head', 'ontology#homepage', 'ontology#member', 'ontology#name', 'ontology#publishes', 'rev-ontology#carriedOutBy', 'ontology#finances', 'ontology#name', 'rev-ontology#financedBy', 'ontology#fax', 'ontology#homepage', ...]
+        # g.ntypes = ['Forschungsgebiete', 'Forschungsgruppen', 'Kooperationen', 'Personen', 'Projekte', 'Publikationen', '_Literal']
         g = dataset[0]
     elif name == 'mutag':
         dataset = MUTAGDataset()
@@ -54,6 +62,9 @@ def load_data(name, feat_dim=DEFAULT_DIM, prepare=True, to_homo=True):
         g = dataset[0]
     elif name == "mag":
         dataset = DglNodePropPredDataset(name="ogbn-mag")
+        # g.canonical_etypes = [('author', 'affiliated_with', 'institution'), ('author', 'writes', 'paper'), ('paper', 'cites', 'paper'), ('paper', 'has_topic', 'field_of_study')]
+        # g.etypes = ['affiliated_with', 'writes', 'cites', 'has_topic']
+        # g.ntypes = ['author', 'field_of_study', 'institution', 'paper']
         g = dataset[0][0]
     elif name == "wikikg2":
         dataset = DglLinkPropPredDataset(name='ogbl-wikikg2')
@@ -67,6 +78,10 @@ def load_data(name, feat_dim=DEFAULT_DIM, prepare=True, to_homo=True):
             hetero_dict[('n', str(i), 'n')] = (
                 torch.flatten(src[type_index]), torch.flatten(dst[type_index]))
         g = dgl.heterograph(hetero_dict)
+    elif name == "fb15k":
+        from dgl.data import FB15k237Dataset
+        dataset = FB15k237Dataset()
+        g = dataset[0]
     elif name == "biokg":
         dataset = DglLinkPropPredDataset(name='ogbl-biokg')
         g = dataset[0]

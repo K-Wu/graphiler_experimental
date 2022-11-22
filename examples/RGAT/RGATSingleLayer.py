@@ -9,7 +9,7 @@ import nvtx
 from torch_sparse import SparseTensor
 
 from graphiler import EdgeBatchDummy, NodeBatchDummy, mpdfg_builder, update_all
-from graphiler.utils import load_data, setup, check_equal, bench, homo_dataset, DEFAULT_DIM, init_log, empty_cache
+from graphiler.utils import load_data, setup, check_equal, bench, hetero_dataset, DEFAULT_DIM, init_log, empty_cache
 
 # from GAT_DGL import GAT_DGL
 # from GAT_PyG import GAT_PyG
@@ -18,6 +18,9 @@ from graphiler.utils import load_data, setup, check_equal, bench, homo_dataset, 
 device = setup()
 
 BREAK_FLAG = 2
+
+# copying what RGCN used
+RGAT_FEAT_DIM = 16
 
 
 # Currently Graphiler do not support full module compilation
@@ -188,13 +191,13 @@ if __name__ == '__main__':
         exit()
     if sys.argv[1] == "all":
         log = {}
-        for d in homo_dataset:
-            log[d] = profile(d, homo_dataset[d], repeat)
+        for d in hetero_dataset:
+            log[d] = profile(d, RGAT_FEAT_DIM, repeat)
         pd.DataFrame(log).to_pickle("output/RGAT.pkl")
     elif sys.argv[1] == "breakdown":
         log = {}
-        for d in homo_dataset:
-            log[d] = breakdown(d, homo_dataset[d], repeat)
+        for d in hetero_dataset:
+            log[d] = breakdown(d, RGAT_FEAT_DIM, repeat)
         pd.DataFrame(log).to_pickle("output/RGAT_breakdown.pkl")
     else:
         profile(sys.argv[1], int(sys.argv[2]), repeat)

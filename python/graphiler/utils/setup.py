@@ -3,8 +3,6 @@ from pathlib import Path
 
 import torch
 
-from ogb.nodeproppred import DglNodePropPredDataset
-from ogb.linkproppred import DglLinkPropPredDataset
 
 import dgl
 from dgl.data.rdf import AIFBDataset, MUTAGDataset, BGSDataset, AMDataset
@@ -16,10 +14,12 @@ torch.classes.load_library(DGL_PATH + "libgraphiler.so")
 homo_dataset = {"cora": 1433, "pubmed": 500,
                 "ppi": 50, "arxiv": 128, "reddit": 602}
 
-hetero_dataset = ["aifb", "mutag", "bgs", "biokg", "am", "wikikg2"]
+hetero_dataset = ["aifb", "mutag", "bgs", "biokg", "am", "wikikg2", "mag"]
 
 
 def load_data(name, feat_dim=DEFAULT_DIM, prepare=True, to_homo=True):
+    from ogb.nodeproppred import DglNodePropPredDataset
+    from ogb.linkproppred import DglLinkPropPredDataset
     if name == "arxiv":
         dataset = DglNodePropPredDataset(name="ogbn-arxiv")
         g = dataset[0][0]
@@ -97,7 +97,7 @@ def load_data(name, feat_dim=DEFAULT_DIM, prepare=True, to_homo=True):
     else:
         raise Exception("Unknown Dataset")
 
-    node_feats = torch.rand([g.number_of_nodes(), feat_dim])
+    node_feats = torch.rand([sum(g.number_of_nodes(ntype) for ntype in g), feat_dim])
 
     if name in hetero_dataset:
         g, type_pointers = prepare_hetero_graph_simplified(g, node_feats)

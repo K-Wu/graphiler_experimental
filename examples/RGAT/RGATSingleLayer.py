@@ -15,7 +15,7 @@ from graphiler.utils import (
     check_equal,
     bench,
     hetero_dataset,
-    DEFAULT_DIM,
+    #    DEFAULT_DIM,
     init_log,
     empty_cache,
 )
@@ -116,7 +116,7 @@ class RGATSingleLayer(nn.Module):
         return h
 
 
-def profile(dataset, feat_dim, repeat=1000):
+def profile(dataset, feat_dim, out_dim, repeat=1000):
     log = init_log(
         ["0-DGL-UDF", "1-DGL-primitives", "2-PyG-primitives", "3-Graphiler"],
         ["time", "mem"],
@@ -130,7 +130,7 @@ def profile(dataset, feat_dim, repeat=1000):
         g, _ = load_data(dataset, feat_dim, prepare=True)
         g = g.to(device)
         net = RGATSingleLayer(
-            in_dim=feat_dim, out_dim=DEFAULT_DIM, num_rels=len(g.canonical_etypes)
+            in_dim=feat_dim, out_dim=out_dim, num_rels=len(g.canonical_etypes)
         ).to(device)
         net.eval()
         with torch.no_grad():
@@ -207,14 +207,14 @@ def profile(dataset, feat_dim, repeat=1000):
     return log
 
 
-def breakdown(dataset, feat_dim, repeat=1000):
+def breakdown(dataset, feat_dim, out_dim, repeat=1000):
     log = init_log(["0-DGL-UDF", "1+compile", "2+reorder", "3+fusion"], ["time", "mem"])
     print("benchmarking on: " + dataset)
     g, features = load_data(dataset, feat_dim)
     g, features = g.to(device), features.to(device)
 
     net = RGATSingleLayer(
-        in_dim=feat_dim, out_dim=DEFAULT_DIM, num_rels=len(g.canonical_etypes)
+        in_dim=feat_dim, out_dim=out_dim, num_rels=len(g.canonical_etypes)
     ).to(device)
     net.eval()
     with torch.no_grad():
@@ -264,18 +264,18 @@ def breakdown(dataset, feat_dim, repeat=1000):
 
 if __name__ == "__main__":
     repeat = int(os.environ.get("REPEAT", 50))
-    if len(sys.argv) != 3:
-        print("usage: python RGATSingleLayer.py [dataset] [feat_dim]")
+    if len(sys.argv) != 4:
+        print("usage: python RGATSingleLayer.py [dataset] [feat_dim] [out_dim]")
         exit()
     if sys.argv[1] == "all":
         log = {}
         for d in hetero_dataset:
-            log[d] = profile(d, RGAT_FEAT_DIM, repeat)
+            log[d] = profile(d, int(sys.argv[2]), int(sys.argv[3]), repeat)
         pd.DataFrame(log).to_pickle("output/RGAT.pkl")
     elif sys.argv[1] == "breakdown":
         log = {}
         for d in hetero_dataset:
-            log[d] = breakdown(d, RGAT_FEAT_DIM, repeat)
+            log[d] = breakdown(d, int(sys.argv[2]), int(sys.argv[3]), repeat)
         pd.DataFrame(log).to_pickle("output/RGAT_breakdown.pkl")
     else:
-        profile(sys.argv[1], int(sys.argv[2]), repeat)
+        profile(sys.argv[1], int(sys.argv[2]), int(sys.argv[3]), repeat)

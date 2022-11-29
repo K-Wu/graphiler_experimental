@@ -14,7 +14,7 @@ from graphiler.utils import (
     check_equal,
     bench,
     hetero_dataset,
-    DEFAULT_DIM,
+    #    DEFAULT_DIM,
     init_log,
     empty_cache,
 )
@@ -29,8 +29,8 @@ device = setup()
 
 BREAK_FLAG = 2
 
-MY_DEFAULT_DIM = 8
-NUM_HEADS = 8
+# MY_DEFAULT_DIM = 8
+# NUM_HEADS = 8
 
 # note: for heterogenous GNNs, instead of remaining compatible with DGL interface
 # we introduced a simplified interface which might be adopted in DGL in the future:
@@ -199,34 +199,34 @@ class MultiHead_HGTLayer_simplified(nn.Module):
         elif flag == "naive":
             g.update_all(self.message_func, self.reduce_func, self.update_func)
         else:
-            assert False & "unsupported flagF"
+            assert False and "unsupported flagF"
 
 
 # TODO: add a single layer class
 class Multihead_HGT(nn.Module):
-    def __init__(self, in_dim, h_dim, out_dim, num_ntypes, num_rels, num_heads):
+    def __init__(self, in_dim, out_dim, num_ntypes, num_rels, num_heads):  # , h_dim
         super(Multihead_HGT, self).__init__()
         self.in_dim = in_dim
-        self.h_dim = h_dim
+        # self.h_dim = h_dim
         self.out_dim = out_dim
         self.num_ntypes = num_ntypes
         self.num_rels = num_rels
         self.num_heads = num_heads
 
         self.layer0 = MultiHead_HGTLayer_simplified(
-            self.in_dim, self.h_dim, self.num_ntypes, self.num_rels, self.num_heads
+            self.in_dim, self.out_dim, self.num_ntypes, self.num_rels, self.num_heads
         )
-        self.layer1 = MultiHead_HGTLayer_simplified(
-            self.h_dim, self.out_dim, self.num_ntypes, self.num_rels, self.num_heads
-        )
+        # self.layer1 = MultiHead_HGTLayer_simplified(
+        #     self.h_dim, self.out_dim, self.num_ntypes, self.num_rels, self.num_heads
+        # )
 
     def forward(self, g, h, flag="naive"):
         self.layer0(g, h, flag=flag)
-        self.layer1(g, g.ndata["h"], flag=flag)
+        # self.layer1(g, g.ndata["h"], flag=flag)
         return g.ndata.pop("h")
 
 
-def profile(dataset, feat_dim, repeat=1000):
+def profile(dataset, feat_dim, out_dim, num_heads, repeat=1000):
     log = init_log(
         [
             "0-DGL-UDF",
@@ -247,14 +247,7 @@ def profile(dataset, feat_dim, repeat=1000):
     def run_baseline_graphiler(g, features):
         g, _ = load_data(dataset, feat_dim, prepare=True)
         g = g.to(device)
-        net = Multihead_HGT(
-            feat_dim,
-            MY_DEFAULT_DIM,
-            MY_DEFAULT_DIM,
-            g.num_ntypes,
-            g.num_rels,
-            NUM_HEADS,
-        ).to(
+        net = Multihead_HGT(feat_dim, out_dim, g.num_ntypes, g.num_rels, num_heads,).to(
             device
         )  # MY_DEFAULT_DIM, len(g._ntypes), len(g._etypes)).to(device)
         net.eval()
@@ -304,9 +297,7 @@ def profile(dataset, feat_dim, repeat=1000):
                 node_dict[ntype] = len(node_dict)
             for etype in g_hetero.canonical_etypes:
                 edge_dict[etype] = len(edge_dict)
-            net_hetero = HGT_DGLHetero(
-                node_dict, edge_dict, feat_dim, MY_DEFAULT_DIM, MY_DEFAULT_DIM
-            ).to(device)
+            net_hetero = HGT_DGLHetero(node_dict, edge_dict, out_dim).to(device)
             net_hetero.eval()
             with torch.no_grad():
                 bench(
@@ -331,8 +322,7 @@ def profile(dataset, feat_dim, repeat=1000):
             )
             net_pyg_slice = HGT_PyG(
                 feat_dim,
-                MY_DEFAULT_DIM,
-                MY_DEFAULT_DIM,
+                out_dim,
                 g.num_ntypes,
                 g.num_rels,
                 mode="slice",
@@ -367,8 +357,7 @@ def profile(dataset, feat_dim, repeat=1000):
             )
             net_pyg_bmm = HGT_PyG(
                 feat_dim,
-                MY_DEFAULT_DIM,
-                MY_DEFAULT_DIM,
+                out_dim,
                 g.num_ntypes,
                 g.num_rels,
                 mode="bmm",
@@ -401,14 +390,14 @@ def profile(dataset, feat_dim, repeat=1000):
     return log
 
 
-def breakdown(dataset, feat_dim, repeat=1000):
+def breakdown(dataset, feat_dim, out_dim, num_heads, repeat=1000):
     log = init_log(["0-DGL-UDF", "1+compile", "2+reorder", "3+fusion"], ["time", "mem"])
     print("benchmarking on: " + dataset)
     g, features = load_data(dataset, feat_dim)
     g, features = g.to(device), features.to(device)
-    net = Multihead_HGT(
-        feat_dim, MY_DEFAULT_DIM, MY_DEFAULT_DIM, g.num_ntypes, g.num_rels, NUM_HEADS
-    ).to(device)
+    net = Multihead_HGT(feat_dim, out_dim, g.num_ntypes, g.num_rels, num_heads).to(
+        device
+    )
     net.eval()
     with torch.no_grad():
         bench(
@@ -458,18 +447,24 @@ def breakdown(dataset, feat_dim, repeat=1000):
 if __name__ == "__main__":
     # repeat = int(os.environ.get('REPEAT', 50))
     repeat = 1
-    if len(sys.argv) != 3:
-        print("usage: python HGT.py [dataset] [feat_dim]")
+    if len(sys.argv) != 5:
+        print("usage: python HGT.py [dataset] [feat_dim] [out_dim] [num_heads]")
         exit()
     if sys.argv[1] == "all":
         log = {}
         for d in hetero_dataset:
-            log[d] = profile(d, MY_DEFAULT_DIM, repeat)
+            log[d] = profile(
+                d, int(sys.argv[2]), int(sys.argv[3]), int(sys.argv[4]), repeat
+            )
         pd.DataFrame(log).to_pickle("output/HGT.pkl")
     elif sys.argv[1] == "breakdown":
         log = {}
         for d in hetero_dataset:
-            log[d] = breakdown(d, MY_DEFAULT_DIM, repeat)
+            log[d] = breakdown(
+                d, int(sys.argv[2]), int(sys.argv[3]), int(sys.argv[4]), repeat
+            )
         pd.DataFrame(log).to_pickle("output/HGT_breakdown.pkl")
     else:
-        profile(sys.argv[1], int(sys.argv[2]), repeat)
+        profile(
+            sys.argv[1], int(sys.argv[2]), int(sys.argv[3]), int(sys.argv[4]), repeat
+        )

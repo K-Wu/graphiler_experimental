@@ -108,10 +108,10 @@ class Multihead_RGATLayer(nn.Module):
 
 
 class Multihead_RGAT(nn.Module):
-    def __init__(self, in_dim, hidden_dim, out_dim, num_rels):
+    def __init__(self, in_dim, hidden_dim, out_dim, num_rels, num_heads):
         super(Multihead_RGAT, self).__init__()
-        self.layer1 = Multihead_RGATLayer(in_dim, hidden_dim, num_rels)
-        self.layer2 = Multihead_RGATLayer(hidden_dim, out_dim, num_rels)
+        self.layer1 = Multihead_RGATLayer(in_dim, hidden_dim, num_rels, num_heads)
+        self.layer2 = Multihead_RGATLayer(hidden_dim, out_dim, num_rels, num_heads)
 
     def forward(self, g, features, compile=False):
         h = self.layer1(g, features, compile)
@@ -120,10 +120,10 @@ class Multihead_RGAT(nn.Module):
         return h
 
 
-class RGATSingleLayer(nn.Module):
-    def __init__(self, in_dim, out_dim, num_rels):
-        super(RGATSingleLayer, self).__init__()
-        self.layer1 = Multihead_RGATLayer(in_dim, out_dim, num_rels)
+class Multihead_RGATSingleLayer(nn.Module):
+    def __init__(self, in_dim, out_dim, num_rels, num_heads):
+        super(Multihead_RGATSingleLayer, self).__init__()
+        self.layer1 = Multihead_RGATLayer(in_dim, out_dim, num_rels, num_heads)
 
     def forward(self, g, features, compile=False):
         h = self.layer1(g, features, compile)
@@ -131,7 +131,7 @@ class RGATSingleLayer(nn.Module):
         return h
 
 
-def profile(dataset, feat_dim, repeat=1000):
+def profile(dataset, feat_dim, out_dim, num_heads, repeat=1000):
     log = init_log(
         ["0-DGL-UDF", "1-DGL-primitives", "2-PyG-primitives", "3-Graphiler"],
         ["time", "mem"],
@@ -144,8 +144,11 @@ def profile(dataset, feat_dim, repeat=1000):
     def run_baseline_graphiler(g, features):
         g, _ = load_data(dataset, feat_dim, prepare=True)
         g = g.to(device)
-        net = RGATSingleLayer(
-            in_dim=feat_dim, out_dim=DEFAULT_DIM, num_rels=len(g.canonical_etypes)
+        net = Multihead_RGATSingleLayer(
+            in_dim=feat_dim,
+            out_dim=out_dim,
+            num_rels=len(g.canonical_etypes),
+            num_heads=num_heads,
         ).to(device)
         net.eval()
         with torch.no_grad():
@@ -222,14 +225,17 @@ def profile(dataset, feat_dim, repeat=1000):
     return log
 
 
-def breakdown(dataset, feat_dim, repeat=1000):
+def breakdown(dataset, feat_dim, out_dim, num_heads, repeat=1000):
     log = init_log(["0-DGL-UDF", "1+compile", "2+reorder", "3+fusion"], ["time", "mem"])
     print("benchmarking on: " + dataset)
     g, features = load_data(dataset, feat_dim)
     g, features = g.to(device), features.to(device)
 
-    net = RGATSingleLayer(
-        in_dim=feat_dim, out_dim=DEFAULT_DIM, num_rels=len(g.canonical_etypes)
+    net = Multihead_RGATSingleLayer(
+        in_dim=feat_dim,
+        out_dim=out_dim,
+        num_rels=len(g.canonical_etypes),
+        num_heads=num_heads,
     ).to(device)
     net.eval()
     with torch.no_grad():
@@ -279,18 +285,26 @@ def breakdown(dataset, feat_dim, repeat=1000):
 
 if __name__ == "__main__":
     repeat = int(os.environ.get("REPEAT", 50))
-    if len(sys.argv) != 3:
-        print("usage: python RGATSingleLayer.py [dataset] [feat_dim]")
+    if len(sys.argv) != 5:
+        print(
+            "usage: python RGATSingleLayer.py [dataset] [feat_dim] [out_dim] [num_heads]"
+        )
         exit()
     if sys.argv[1] == "all":
         log = {}
         for d in hetero_dataset:
-            log[d] = profile(d, RGAT_FEAT_DIM, repeat)
+            log[d] = profile(
+                d, int(sys.argv[2]), int(sys.argv[3]), int(sys.argv[4]), repeat
+            )
         pd.DataFrame(log).to_pickle("output/Multihead_RGAT.pkl")
     elif sys.argv[1] == "breakdown":
         log = {}
         for d in hetero_dataset:
-            log[d] = breakdown(d, RGAT_FEAT_DIM, repeat)
+            log[d] = breakdown(
+                d, int(sys.argv[2]), int(sys.argv[3]), int(argv[4]), repeat
+            )
         pd.DataFrame(log).to_pickle("output/RGAT_breakdown.pkl")
     else:
-        profile(sys.argv[1], int(sys.argv[2]), repeat)
+        profile(
+            sys.argv[1], int(sys.argv[2]), int(sys.argv[3]), int(sys.argv[4]), repeat
+        )

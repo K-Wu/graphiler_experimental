@@ -32,46 +32,59 @@ BREAK_FLAG = 2
 RGAT_FEAT_DIM = 16
 
 
-# Currently Graphiler do not support full module compilation
-# therefore, we pass extra parameters as a workaround for class member
-# e.g., self.fc_weight, compare with GATLayer.message_func for the difference
-def message_func(edges: EdgeBatchDummy, fc_weight, attn_weight):
-    # (E, in_dim) * (in_dim, out_dim) -> (E, out_dim)
-    z_s = torch.mm(edges.src["h"], fc_weight)
-    z_d = torch.mm(edges.dst["h"], fc_weight)
+def get_mpdfg(num_heads, out_dim):
+    # Currently Graphiler do not support full module compilation
+    # therefore, we pass extra parameters as a workaround for class member
+    # e.g., self.fc_weight, compare with GATLayer.message_func for the difference
+    def message_func(edges: EdgeBatchDummy, fc_weight, attn_weight):
+        # (E, in_dim) * (in_dim, out_dim) -> (E, out_dim)
+        z_s = torch.mm(edges.src["h"], fc_weight).view(-1, num_heads, out_dim)
+        z_d = torch.mm(edges.dst["h"], fc_weight).view(-1, num_heads, out_dim)
 
-    # (E, 2 * out_dim)
-    z2 = torch.cat([z_s, z_d], dim=1)
-    # (E, 2 * out_dim) * (2 * out_dim, 1) -> (E, 1)
-    a = torch.mm(z2, attn_weight)
-    return {"z": z_s, "e": F.leaky_relu_(a)}
+        # (E, 2 * out_dim)
+        z2 = torch.cat([z_s, z_d], dim=1)
+        # (E, 2 * out_dim) * (2 * out_dim, 1) -> (E, 1)
+        a = torch.sum(z2 * attn_weight, dim=2).squeeze()
+        return {"z": z_s, "e": F.leaky_relu_(a)}
+
+    def reduce_func(nodes: NodeBatchDummy):
+
+        alpha = torch.softmax(nodes.mailbox["e"], dim=1)
+        h = torch.sum(alpha * nodes.mailbox["z"], dim=1)
+        return {"h": h}
+
+    mpdfg = mpdfg_builder(message_func, reduce_func)
+    mpdfg_compile = mpdfg_builder(message_func, reduce_func, opt_level=0)
+    mpdfg_plus_reorder = mpdfg_builder(message_func, reduce_func, opt_level=1)
+    return mpdfg, mpdfg_compile, mpdfg_plus_reorder, reduce_func
 
 
-def reduce_func(nodes: NodeBatchDummy):
-    alpha = torch.softmax(nodes.mailbox["e"], dim=1)
-    h = torch.sum(alpha * nodes.mailbox["z"], dim=1)
-    return {"h": h}
-
-
-mpdfg = mpdfg_builder(message_func, reduce_func)
-mpdfg_compile = mpdfg_builder(message_func, reduce_func, opt_level=0)
-mpdfg_plus_reorder = mpdfg_builder(message_func, reduce_func, opt_level=1)
-
-
-class RGATLayer(nn.Module):
-    def __init__(self, in_dim, out_dim, num_rels):
-        super(RGATLayer, self).__init__()
+class Multihead_RGATLayer(nn.Module):
+    def __init__(self, in_dim, out_dim, num_rels, num_heads):
+        super(Multihead_RGATLayer, self).__init__()
+        self.num_heads = num_heads
+        self.out_dim = out_dim
         self.fc_weight = torch.rand(num_rels, in_dim, out_dim).to(device)
-        self.attn_weight = torch.rand(num_rels, 2 * out_dim, 1).to(device)
+        self.attn_weight = torch.rand(num_rels, num_heads, 2 * out_dim // num_heads).to(
+            device
+        )
+        (
+            self.mpdfg,
+            self.mpdfg_compile,
+            self.mpdfg_plus_reorder,
+            self.reduce_func,
+        ) = get_mpdfg(num_heads, out_dim)
 
     def message_func(self, edges):
         fc_weight = self.fc_weight[edges.data["_TYPE"]]
         attn_weight = self.attn_weight[edges.data["_TYPE"]]
-        # (Em)
-        z_s = torch.mm(edges.src["h"], fc_weight)
-        z_d = torch.mm(edges.dst["h"], fc_weight)
+        # (E, in_dim) * (in_dim, out_dim) -> (E, out_dim) > (E, num_heads, out_dim // num_heads)
+        z_s = torch.mm(edges.src["h"], fc_weight).view(-1, self.num_heads, self.out_dim)
+        z_d = torch.mm(edges.dst["h"], fc_weight).view(-1, self.num_heads, self.out_dim)
+        # (E, num_heads, 2 * out_dim // num_heads)
         z2 = torch.cat([z_s, z_d], dim=1)
-        a = torch.mm(z2, attn_weight)
+        # (E, num_heads, 2 * out_dim // num_heads) * (num_heads, 2 * out_dim // num_heads) -> (E, num_heads)
+        a = torch.sum(z2 * attn_weight, dim=2).squeeze()
         return {"z": z_s, "e": torch.relu(a)}
 
     def forward(self, g, feature, compile=False):
@@ -79,24 +92,26 @@ class RGATLayer(nn.Module):
         if compile:
             if BREAK_FLAG == 0:
                 update_all(
-                    g, mpdfg_compile, msg_params=(self.fc_weight, self.attn_weight)
+                    g, self.mpdfg_compile, msg_params=(self.fc_weight, self.attn_weight)
                 )
             elif BREAK_FLAG == 1:
                 update_all(
-                    g, mpdfg_plus_reorder, msg_params=(self.fc_weight, self.attn_weight)
+                    g,
+                    self.mpdfg_plus_reorder,
+                    msg_params=(self.fc_weight, self.attn_weight),
                 )
             else:
-                update_all(g, mpdfg, msg_params=(self.fc_weight, self.attn_weight))
+                update_all(g, self.mpdfg, msg_params=(self.fc_weight, self.attn_weight))
         else:
-            g.update_all(self.message_func, reduce_func)
+            g.update_all(self.message_func, self.reduce_func)
         return g.ndata.pop("h")
 
 
-class RGAT(nn.Module):
+class Multihead_RGAT(nn.Module):
     def __init__(self, in_dim, hidden_dim, out_dim, num_rels):
-        super(RGAT, self).__init__()
-        self.layer1 = RGATLayer(in_dim, hidden_dim, num_rels)
-        self.layer2 = RGATLayer(hidden_dim, out_dim, num_rels)
+        super(Multihead_RGAT, self).__init__()
+        self.layer1 = Multihead_RGATLayer(in_dim, hidden_dim, num_rels)
+        self.layer2 = Multihead_RGATLayer(hidden_dim, out_dim, num_rels)
 
     def forward(self, g, features, compile=False):
         h = self.layer1(g, features, compile)
@@ -108,7 +123,7 @@ class RGAT(nn.Module):
 class RGATSingleLayer(nn.Module):
     def __init__(self, in_dim, out_dim, num_rels):
         super(RGATSingleLayer, self).__init__()
-        self.layer1 = RGATLayer(in_dim, out_dim, num_rels)
+        self.layer1 = Multihead_RGATLayer(in_dim, out_dim, num_rels)
 
     def forward(self, g, features, compile=False):
         h = self.layer1(g, features, compile)
@@ -271,7 +286,7 @@ if __name__ == "__main__":
         log = {}
         for d in hetero_dataset:
             log[d] = profile(d, RGAT_FEAT_DIM, repeat)
-        pd.DataFrame(log).to_pickle("output/RGAT.pkl")
+        pd.DataFrame(log).to_pickle("output/Multihead_RGAT.pkl")
     elif sys.argv[1] == "breakdown":
         log = {}
         for d in hetero_dataset:

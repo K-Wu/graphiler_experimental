@@ -32,31 +32,33 @@ BREAK_FLAG = 2
 RGAT_FEAT_DIM = 16
 
 
-def get_mpdfg(num_heads, out_dim):
-    # Currently Graphiler do not support full module compilation
-    # therefore, we pass extra parameters as a workaround for class member
-    # e.g., self.fc_weight, compare with GATLayer.message_func for the difference
-    def message_func(edges: EdgeBatchDummy, fc_weight, attn_weight):
-        # (E, in_dim) * (in_dim, out_dim) -> (E, out_dim)
-        z_s = torch.mm(edges.src["h"], fc_weight).view(-1, num_heads, out_dim)
-        z_d = torch.mm(edges.dst["h"], fc_weight).view(-1, num_heads, out_dim)
+# Currently Graphiler do not support full module compilation
+# therefore, we pass extra parameters as a workaround for class member
+# e.g., self.fc_weight, compare with GATLayer.message_func for the difference
 
-        # (E, 2 * out_dim)
-        z2 = torch.cat([z_s, z_d], dim=1)
-        # (E, 2 * out_dim) * (2 * out_dim, 1) -> (E, 1)
-        a = torch.sum(z2 * attn_weight, dim=2).squeeze()
-        return {"z": z_s, "e": F.leaky_relu_(a)}
 
-    def reduce_func(nodes: NodeBatchDummy):
+def message_func(edges: EdgeBatchDummy, fc_weight, attn_weight, num_heads, out_dim):
+    # (E, in_dim) * (in_dim, out_dim) -> (E, out_dim)
+    z_s = torch.mm(edges.src["h"], fc_weight).view(-1, num_heads, out_dim)
+    z_d = torch.mm(edges.dst["h"], fc_weight).view(-1, num_heads, out_dim)
 
-        alpha = torch.softmax(nodes.mailbox["e"], dim=1)
-        h = torch.sum(alpha * nodes.mailbox["z"], dim=1)
-        return {"h": h}
+    # (E, 2 * out_dim)
+    z2 = torch.cat([z_s, z_d], dim=1)
+    # (E, 2 * out_dim) * (2 * out_dim, 1) -> (E, 1)
+    a = torch.sum(z2 * attn_weight, dim=2).squeeze()
+    return {"z": z_s, "e": F.leaky_relu_(a)}
 
-    mpdfg = mpdfg_builder(message_func, reduce_func)
-    mpdfg_compile = mpdfg_builder(message_func, reduce_func, opt_level=0)
-    mpdfg_plus_reorder = mpdfg_builder(message_func, reduce_func, opt_level=1)
-    return mpdfg, mpdfg_compile, mpdfg_plus_reorder, reduce_func
+
+def reduce_func(nodes: NodeBatchDummy):
+
+    alpha = torch.softmax(nodes.mailbox["e"], dim=1)
+    h = torch.sum(alpha * nodes.mailbox["z"], dim=1)
+    return {"h": h}
+
+
+mpdfg = mpdfg_builder(message_func, reduce_func)
+mpdfg_compile = mpdfg_builder(message_func, reduce_func, opt_level=0)
+mpdfg_plus_reorder = mpdfg_builder(message_func, reduce_func, opt_level=1)
 
 
 class Multihead_RGATLayer(nn.Module):
@@ -68,12 +70,6 @@ class Multihead_RGATLayer(nn.Module):
         self.attn_weight = torch.rand(num_rels, num_heads, 2 * out_dim // num_heads).to(
             device
         )
-        (
-            self.mpdfg,
-            self.mpdfg_compile,
-            self.mpdfg_plus_reorder,
-            self.reduce_func,
-        ) = get_mpdfg(num_heads, out_dim)
 
     def message_func(self, edges):
         fc_weight = self.fc_weight[edges.data["_TYPE"]]
@@ -92,18 +88,39 @@ class Multihead_RGATLayer(nn.Module):
         if compile:
             if BREAK_FLAG == 0:
                 update_all(
-                    g, self.mpdfg_compile, msg_params=(self.fc_weight, self.attn_weight)
+                    g,
+                    mpdfg_compile,
+                    msg_params=(
+                        self.fc_weight,
+                        self.attn_weight,
+                        self.num_heads,
+                        self.out_dim,
+                    ),
                 )
             elif BREAK_FLAG == 1:
                 update_all(
                     g,
-                    self.mpdfg_plus_reorder,
-                    msg_params=(self.fc_weight, self.attn_weight),
+                    mpdfg_plus_reorder,
+                    msg_params=(
+                        self.fc_weight,
+                        self.attn_weight,
+                        self.num_heads,
+                        self.out_dim,
+                    ),
                 )
             else:
-                update_all(g, self.mpdfg, msg_params=(self.fc_weight, self.attn_weight))
+                update_all(
+                    g,
+                    mpdfg,
+                    msg_params=(
+                        self.fc_weight,
+                        self.attn_weight,
+                        self.num_heads,
+                        self.out_dim,
+                    ),
+                )
         else:
-            g.update_all(self.message_func, self.reduce_func)
+            g.update_all(self.message_func, reduce_func)
         return g.ndata.pop("h")
 
 

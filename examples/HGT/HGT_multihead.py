@@ -37,51 +37,48 @@ BREAK_FLAG = 2
 # nodes.type['weight'], edges.srctype, edges.dsttype and edges.type
 # which are consistent to nodes.data['h'], edges.src, edges.dst and edge.data
 # v.s. weight[nodes.data['_TYPE']], edges.src['_TYPE'], edges.dst['_TYPE'] and edges.data['_TYPE']
-def get_mpdfg(d_k, num_heads):
-    def message_func(edges: EdgeBatchDummy, sqrt_dk: float):
+def message_func(edges: EdgeBatchDummy, sqrt_dk: float, d_k, num_heads):
 
-        k_weight = edges.srctype["k_weight"]
-        v_weight = edges.srctype["v_weight"]
-        q_weight = edges.dsttype["q_weight"]
+    k_weight = edges.srctype["k_weight"]
+    v_weight = edges.srctype["v_weight"]
+    q_weight = edges.dsttype["q_weight"]
 
-        k = torch.bmm(edges.src["h"].unsqueeze(1), k_weight).view(-1, 1, d_k)
-        v = torch.bmm(edges.src["h"].unsqueeze(1), v_weight).view(-1, 1, d_k)
-        q = torch.bmm(edges.dst["h"].unsqueeze(1), q_weight).view(-1, 1, d_k)
+    k = torch.bmm(edges.src["h"].unsqueeze(1), k_weight).view(-1, 1, d_k)
+    v = torch.bmm(edges.src["h"].unsqueeze(1), v_weight).view(-1, 1, d_k)
+    q = torch.bmm(edges.dst["h"].unsqueeze(1), q_weight).view(-1, 1, d_k)
 
-        relation_att = edges.type["relation_att"]
-        relation_msg = edges.type["relation_msg"]
-        relation_pri = edges.type["relation_pri"]
+    relation_att = edges.type["relation_att"]
+    relation_msg = edges.type["relation_msg"]
+    relation_pri = edges.type["relation_pri"]
 
-        k = torch.bmm(k.view(-1, 1, d_k), relation_att.view(-1, d_k, d_k)).view(
-            -1, 1, d_k
-        )
-        v = torch.bmm(v.view(-1, 1, d_k), relation_msg.view(-1, d_k, d_k)).view(
-            -1, num_heads, d_k
-        )
-        # t = k * q
-        # attn_score = torch.sum(t, dim=1, keepdim=True) * relation_pri / sqrt_dk
-        attn_score = torch.bmm(k, q).view(-1, num_heads) * relation_pri / sqrt_dk
-        return {"attn": attn_score, "v": v}
-
-    def reduce_func(nodes: NodeBatchDummy):
-        t = torch.softmax(nodes.mailbox["attn"], dim=1)
-        # attn_score (E, num_heads), v (E, num_heads, d_k). Results should be correctly computed according to torch broadcasting rule.
-        m = t * nodes.mailbox["v"]
-        return {"t": torch.sum(m, dim=1)}
-
-    def update_func(nodes: NodeBatchDummy):
-        skip = nodes.type["skip"]
-        a_weight = nodes.type["a_weight"]
-        alpha = torch.sigmoid(skip)
-        trans_out = torch.bmm(nodes.data["t"].unsqueeze(1), a_weight).squeeze()
-        return {"h": trans_out * alpha.unsqueeze(1)}
-
-    mpdfg = mpdfg_builder(message_func, reduce_func, update_func)
-    mpdfg_compile = mpdfg_builder(message_func, reduce_func, update_func, opt_level=0)
-    mpdfg_plus_reorder = mpdfg_builder(
-        message_func, reduce_func, update_func, opt_level=1
+    k = torch.bmm(k.view(-1, 1, d_k), relation_att.view(-1, d_k, d_k)).view(-1, 1, d_k)
+    v = torch.bmm(v.view(-1, 1, d_k), relation_msg.view(-1, d_k, d_k)).view(
+        -1, num_heads, d_k
     )
-    return mpdfg, mpdfg_compile, mpdfg_plus_reorder, reduce_func
+    # t = k * q
+    # attn_score = torch.sum(t, dim=1, keepdim=True) * relation_pri / sqrt_dk
+    attn_score = torch.bmm(k, q).view(-1, num_heads) * relation_pri / sqrt_dk
+    return {"attn": attn_score, "v": v}
+
+
+def reduce_func(nodes: NodeBatchDummy):
+    t = torch.softmax(nodes.mailbox["attn"], dim=1)
+    # attn_score (E, num_heads), v (E, num_heads, d_k). Results should be correctly computed according to torch broadcasting rule.
+    m = t * nodes.mailbox["v"]
+    return {"t": torch.sum(m, dim=1)}
+
+
+def update_func(nodes: NodeBatchDummy):
+    skip = nodes.type["skip"]
+    a_weight = nodes.type["a_weight"]
+    alpha = torch.sigmoid(skip)
+    trans_out = torch.bmm(nodes.data["t"].unsqueeze(1), a_weight).squeeze()
+    return {"h": trans_out * alpha.unsqueeze(1)}
+
+
+mpdfg = mpdfg_builder(message_func, reduce_func, update_func)
+mpdfg_compile = mpdfg_builder(message_func, reduce_func, update_func, opt_level=0)
+mpdfg_plus_reorder = mpdfg_builder(message_func, reduce_func, update_func, opt_level=1)
 
 
 class MultiHead_HGTLayer_simplified(nn.Module):
@@ -118,12 +115,6 @@ class MultiHead_HGTLayer_simplified(nn.Module):
         ).to(device)
 
         self.skip = torch.ones(self.num_ntypes, self.num_heads).to(device)
-        (
-            self.mpdfg,
-            self.mpdfg_compile,
-            self.mpdfg_plus_reorder,
-            self.reduce_func,
-        ) = get_mpdfg(self.d_k, self.num_heads)
 
     def message_func(self, edges):
         # (E, in_dim, out_dim)
@@ -185,11 +176,21 @@ class MultiHead_HGTLayer_simplified(nn.Module):
         if flag == "compile":
             range_id = nvtx.start_range("my_code_range")
             if BREAK_FLAG == 0:
-                update_all(g, self.mpdfg_compile, msg_params=(self.sqrt_dk,))
+                update_all(
+                    g,
+                    mpdfg_compile,
+                    msg_params=(self.sqrt_dk, self.d_k, self.num_heads),
+                )
             elif BREAK_FLAG == 1:
-                update_all(g, self.mpdfg_plus_reorder, msg_params=(self.sqrt_dk,))
+                update_all(
+                    g,
+                    mpdfg_plus_reorder,
+                    msg_params=(self.sqrt_dk, self.d_k, self.num_heads),
+                )
             else:
-                update_all(g, self.mpdfg, msg_params=(self.sqrt_dk,))
+                update_all(
+                    g, mpdfg, msg_params=(self.sqrt_dk, self.d_k, self.num_heads)
+                )
             nvtx.end_range(range_id)
         elif flag == "batch":
             # use dgl built-in functions as dgl-batch baseline
@@ -197,7 +198,7 @@ class MultiHead_HGTLayer_simplified(nn.Module):
             g.edata["m"] = edge_softmax(g, g.edata["attn"]) * g.edata["v"]
             g.update_all(fn.copy_e("m", "m"), fn.sum("m", "t"), self.update_func)
         elif flag == "naive":
-            g.update_all(self.message_func, self.reduce_func, self.update_func)
+            g.update_all(self.message_func, reduce_func, self.update_func)
         else:
             assert False and "unsupported flagF"
 

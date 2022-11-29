@@ -37,16 +37,24 @@ RGAT_FEAT_DIM = 16
 # e.g., self.fc_weight, compare with GATLayer.message_func for the difference
 
 
-def message_func(edges: EdgeBatchDummy, fc_weight, attn_weight, num_heads, out_dim):
-    # (E, in_dim) * (in_dim, out_dim) -> (E, out_dim)
-    z_s = torch.mm(edges.src["h"], fc_weight).view(-1, num_heads, out_dim)
-    z_d = torch.mm(edges.dst["h"], fc_weight).view(-1, num_heads, out_dim)
+def message_func(edges: EdgeBatchDummy, num_heads: int, out_dim: int):
+    # (E, 1, in_dim) * (E, in_dim, out_dim) -> (E, 1, out_dim)
+    fc_weight_src = edges.srctype["fc_weight"]
+    fc_weight_dst = edges.dsttype["fc_weight"]
+    z_s = torch.bmm(edges.src["h"].unsqueeze(1), fc_weight_src).view(
+        -1, num_heads, out_dim // num_heads
+    )
+    z_d = torch.bmm(edges.dst["h"].unsqueeze(1), fc_weight_dst).view(
+        -1, num_heads, out_dim // num_heads
+    )
 
-    # (E, 2 * out_dim)
-    z2 = torch.cat([z_s, z_d], dim=1)
-    # (E, 2 * out_dim) * (2 * out_dim, 1) -> (E, 1)
-    a = torch.sum(z2 * attn_weight, dim=2).squeeze()
+    # (E, num_heads, 2 * out_dim//num_heads)
+    z2 = torch.cat([z_s, z_d], dim=2)
+    # (E, num_heads, 2 * out_dim//num_heads) broadcast * (E, num_heads, 2 * out_dim//num_heads) -> (E, num_heads, 2 * out_dim//num_heads) -> (sum) (E, num_heads, 1) > (E, num_heads)
+    a = torch.sum(z2 * edges.type["attn_weight"], dim=2).squeeze()
+    # edges.type["attn_weight"].view(-1,num_heads, 2*out_dim//num_heads).shape
     return {"z": z_s, "e": F.leaky_relu_(a)}
+    # return {"z": z_s, "e": z_s}
 
 
 def reduce_func(nodes: NodeBatchDummy):
@@ -72,6 +80,7 @@ class Multihead_RGATLayer(nn.Module):
         )
 
     def message_func(self, edges):
+        # TODO: update according to message_func in mpdfg
         fc_weight = self.fc_weight[edges.data["_TYPE"]]
         attn_weight = self.attn_weight[edges.data["_TYPE"]]
         # (E, in_dim) * (in_dim, out_dim) -> (E, out_dim) > (E, num_heads, out_dim // num_heads)
@@ -85,14 +94,14 @@ class Multihead_RGATLayer(nn.Module):
 
     def forward(self, g, feature, compile=False):
         g.ndata["h"] = feature
+        g.ntype_data["fc_weight"] = self.fc_weight
+        g.etype_data["attn_weight"] = self.attn_weight
         if compile:
             if BREAK_FLAG == 0:
                 update_all(
                     g,
                     mpdfg_compile,
                     msg_params=(
-                        self.fc_weight,
-                        self.attn_weight,
                         self.num_heads,
                         self.out_dim,
                     ),
@@ -102,8 +111,6 @@ class Multihead_RGATLayer(nn.Module):
                     g,
                     mpdfg_plus_reorder,
                     msg_params=(
-                        self.fc_weight,
-                        self.attn_weight,
                         self.num_heads,
                         self.out_dim,
                     ),
@@ -113,8 +120,6 @@ class Multihead_RGATLayer(nn.Module):
                     g,
                     mpdfg,
                     msg_params=(
-                        self.fc_weight,
-                        self.attn_weight,
                         self.num_heads,
                         self.out_dim,
                     ),
@@ -164,7 +169,7 @@ def profile(dataset, feat_dim, out_dim, num_heads, repeat=1000):
         net = Multihead_RGATSingleLayer(
             in_dim=feat_dim,
             out_dim=out_dim,
-            num_rels=len(g.canonical_etypes),
+            num_rels=g.num_rels,
             num_heads=num_heads,
         ).to(device)
         net.eval()

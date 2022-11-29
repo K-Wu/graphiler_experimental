@@ -37,7 +37,7 @@ BREAK_FLAG = 2
 # nodes.type['weight'], edges.srctype, edges.dsttype and edges.type
 # which are consistent to nodes.data['h'], edges.src, edges.dst and edge.data
 # v.s. weight[nodes.data['_TYPE']], edges.src['_TYPE'], edges.dst['_TYPE'] and edges.data['_TYPE']
-def message_func(edges: EdgeBatchDummy, sqrt_dk: float, d_k, num_heads):
+def message_func(edges: EdgeBatchDummy, sqrt_dk: float, d_k: int, num_heads: int):
 
     k_weight = edges.srctype["k_weight"]
     v_weight = edges.srctype["v_weight"]

@@ -35,15 +35,19 @@ RGAT_FEAT_DIM = 16
 # Currently Graphiler do not support full module compilation
 # therefore, we pass extra parameters as a workaround for class member
 # e.g., self.fc_weight, compare with GATLayer.message_func for the difference
-def message_func(edges: EdgeBatchDummy, fc_weight, attn_weight):
-    # (E, in_dim) * (in_dim, out_dim) -> (E, out_dim)
-    z_s = torch.mm(edges.src["h"], fc_weight)
-    z_d = torch.mm(edges.dst["h"], fc_weight)
+def message_func(edges: EdgeBatchDummy):
+    # (E, 1, in_dim) * (E, in_dim, out_dim) -> (E, 1, out_dim)
+    fc_weight_src = edges.srctype["fc_weight"]
+    fc_weight_dst = edges.dsttype["fc_weight"]
+    z_s = torch.bmm(edges.src["h"].unsqueeze(1), fc_weight_src)
+    z_d = torch.bmm(edges.dst["h"].unsqueeze(1), fc_weight_dst)
 
-    # (E, 2 * out_dim)
-    z2 = torch.cat([z_s, z_d], dim=1)
-    # (E, 2 * out_dim) * (2 * out_dim, 1) -> (E, 1)
-    a = torch.mm(z2, attn_weight)
+    # (E, 1, 2*out_dim)
+    z_2 = torch.cat([z_s, z_d], dim=2)
+
+    # (E, 1, 2*out_dim) * (E, 2*out_dim, 1) -> (E, 1, 1) > (E, 1)
+    a = torch.bmm(z_2, edges.type["attn_weight"]).squeeze(1)
+
     return {"z": z_s, "e": F.leaky_relu_(a)}
 
 
@@ -65,6 +69,7 @@ class RGATLayer(nn.Module):
         self.attn_weight = torch.rand(num_rels, 2 * out_dim, 1).to(device)
 
     def message_func(self, edges):
+        # TODO: update according to message_func in mpdfg
         fc_weight = self.fc_weight[edges.data["_TYPE"]]
         attn_weight = self.attn_weight[edges.data["_TYPE"]]
         # (Em)
@@ -76,17 +81,15 @@ class RGATLayer(nn.Module):
 
     def forward(self, g, feature, compile=False):
         g.ndata["h"] = feature
+        g.ntype_data["fc_weight"] = self.fc_weight
+        g.etype_data["attn_weight"] = self.attn_weight
         if compile:
             if BREAK_FLAG == 0:
-                update_all(
-                    g, mpdfg_compile, msg_params=(self.fc_weight, self.attn_weight)
-                )
+                update_all(g, mpdfg_compile, msg_params=())
             elif BREAK_FLAG == 1:
-                update_all(
-                    g, mpdfg_plus_reorder, msg_params=(self.fc_weight, self.attn_weight)
-                )
+                update_all(g, mpdfg_plus_reorder, msg_params=())
             else:
-                update_all(g, mpdfg, msg_params=(self.fc_weight, self.attn_weight))
+                update_all(g, mpdfg, msg_params=())
         else:
             g.update_all(self.message_func, reduce_func)
         return g.ndata.pop("h")
@@ -129,9 +132,10 @@ def profile(dataset, feat_dim, out_dim, repeat=1000):
     def run_baseline_graphiler(g, features):
         g, _ = load_data(dataset, feat_dim, prepare=True)
         g = g.to(device)
-        net = RGATSingleLayer(
-            in_dim=feat_dim, out_dim=out_dim, num_rels=len(g.canonical_etypes)
-        ).to(device)
+        print(g.num_ntypes, g.num_rels, len(g.canonical_etypes))
+        net = RGATSingleLayer(in_dim=feat_dim, out_dim=out_dim, num_rels=g.num_rels).to(
+            device
+        )
         net.eval()
         with torch.no_grad():
             with nvtx.annotate("graphiler", color="orange"):

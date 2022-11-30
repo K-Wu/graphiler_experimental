@@ -98,13 +98,13 @@ class RGATLayer(nn.Module):
 class RGAT(nn.Module):
     def __init__(self, in_dim, hidden_dim, out_dim, num_rels):
         super(RGAT, self).__init__()
-        self.layer1 = RGATLayer(in_dim, hidden_dim, num_rels)
-        self.layer2 = RGATLayer(hidden_dim, out_dim, num_rels)
+        self.layer1 = RGATLayer(in_dim, out_dim, num_rels)
+        # self.layer2 = RGATLayer(hidden_dim, out_dim, num_rels)
 
     def forward(self, g, features, compile=False):
         h = self.layer1(g, features, compile)
         h = F.elu(h)
-        h = self.layer2(g, h, compile)
+        # h = self.layer2(g, h, compile)
         return h
 
 

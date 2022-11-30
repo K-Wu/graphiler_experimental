@@ -132,13 +132,13 @@ class Multihead_RGATLayer(nn.Module):
 class Multihead_RGAT(nn.Module):
     def __init__(self, in_dim, hidden_dim, out_dim, num_rels, num_heads):
         super(Multihead_RGAT, self).__init__()
-        self.layer1 = Multihead_RGATLayer(in_dim, hidden_dim, num_rels, num_heads)
-        self.layer2 = Multihead_RGATLayer(hidden_dim, out_dim, num_rels, num_heads)
+        self.layer1 = Multihead_RGATLayer(in_dim, out_dim, num_rels, num_heads)
+        # self.layer2 = Multihead_RGATLayer(hidden_dim, out_dim, num_rels, num_heads)
 
     def forward(self, g, features, compile=False):
         h = self.layer1(g, features, compile)
         h = F.elu(h)
-        h = self.layer2(g, h, compile)
+        # h = self.layer2(g, h, compile)
         return h
 
 

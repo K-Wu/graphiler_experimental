@@ -73,7 +73,7 @@ class RGCNLayer(nn.Module):
 
 
 class RGCN(nn.Module):
-    def __init__(self, in_dim, hidden_dim, out_dim, num_rels):
+    def __init__(self, in_dim, out_dim, num_rels):
         super(RGCN, self).__init__()
 
         self.layer1 = RGCNLayer(in_dim, out_dim, num_rels)
@@ -87,7 +87,7 @@ class RGCN(nn.Module):
         return x
 
 
-def profile(dataset, feat_dim, repeat=1000):
+def profile(dataset, feat_dim, out_dim, repeat=1000):
     log = init_log(
         [
             "0-DGL-UDF",
@@ -109,7 +109,7 @@ def profile(dataset, feat_dim, repeat=1000):
         g, _ = load_data(dataset, feat_dim, prepare=True)
         g = g.to(device)
         norm = torch.rand(g.num_edges(), 1).to(device)
-        net = RGCN(feat_dim, DEFAULT_DIM, feat_dim, g.num_rels).to(device)
+        net = RGCN(feat_dim, out_dim, g.num_rels).to(device)
         net.eval()
         with torch.no_grad():
             with nvtx.annotate("GRAPHILER", color="orange"):
@@ -143,7 +143,7 @@ def profile(dataset, feat_dim, repeat=1000):
             g_hetero = g_hetero.to(device)
             rel_names = list(set(g_hetero.etypes))
             net_dgl_hetero = RGCN_DGL_hetero(
-                feat_dim, DEFAULT_DIM, feat_dim, rel_names, len(rel_names)
+                feat_dim, out_dim, rel_names, len(rel_names)
             ).to(device)
             net_dgl_hetero.eval()
             with torch.no_grad():
@@ -164,9 +164,7 @@ def profile(dataset, feat_dim, repeat=1000):
             edge_type = g.edata["_TYPE"]
             u, v = g.edges()
             adj = torch.stack([u, v]).to(device)
-            net_pyg_bmm = RGCN_PyG(
-                feat_dim, DEFAULT_DIM, DEFAULT_DIM, g.num_rels, mode="bmm"
-            ).to(device)
+            net_pyg_bmm = RGCN_PyG(feat_dim, out_dim, g.num_rels, mode="bmm").to(device)
             net_pyg_bmm.eval()
             with torch.no_grad():
                 bench(
@@ -185,7 +183,7 @@ def profile(dataset, feat_dim, repeat=1000):
         with nvtx.annotate("dgl-bmm", color="purple"):
             g = g.to(device)
             norm = torch.rand(g.num_edges(), 1).to(device)
-            net_dgl = RGCN_DGL(feat_dim, DEFAULT_DIM, feat_dim, g.num_rels).to(device)
+            net_dgl = RGCN_DGL(feat_dim, out_dim, g.num_rels).to(device)
             net_dgl.eval()
             with torch.no_grad():
                 bench(
@@ -205,9 +203,9 @@ def profile(dataset, feat_dim, repeat=1000):
             edge_type = g.edata["_TYPE"]
             u, v = g.edges()
             adj = torch.stack([u, v]).to(device)
-            net_pyg_slice = RGCN_PyG(
-                feat_dim, DEFAULT_DIM, DEFAULT_DIM, g.num_rels, mode="slice"
-            ).to(device)
+            net_pyg_slice = RGCN_PyG(feat_dim, out_dim, g.num_rels, mode="slice").to(
+                device
+            )
             net_pyg_slice.eval()
             with torch.no_grad():
                 bench(
@@ -233,8 +231,8 @@ def profile(dataset, feat_dim, repeat=1000):
 if __name__ == "__main__":
     # repeat = int(os.environ.get('REPEAT', 50))
     repeat = 1
-    if len(sys.argv) != 3:
-        print("usage: python GCN.py [dataset] [feat_dim]")
+    if len(sys.argv) != 4:
+        print("usage: python GCN.py [dataset] [feat_dim] [out_dim]")
         exit()
     if sys.argv[1] == "all":
         log = {}
@@ -242,4 +240,4 @@ if __name__ == "__main__":
             log[d] = profile(d, RGCN_FEAT_DIM, repeat)
         pd.DataFrame(log).to_pickle("output/RGCN.pkl")
     else:
-        profile(sys.argv[1], int(sys.argv[2]), repeat)
+        profile(sys.argv[1], int(sys.argv[2]), int(sys.argv[3]), repeat)

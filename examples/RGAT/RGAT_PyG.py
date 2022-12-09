@@ -1,14 +1,16 @@
 import torch.nn as nn
 import torch.nn.functional as F
 
-from torch_geometric.nn import RGCNConv, FastRGCNConv
+from torch_geometric.nn import RGATConv
 
 
-class RGCN_PyG(nn.Module):
+class RGAT_PyG(nn.Module):
     def __init__(self, in_dim, out_dim, num_rels, mode="bmm"):
-        super(RGCN_PyG, self).__init__()
-        RGCNLayer = FastRGCNConv if mode == "bmm" else RGCNConv
-        self.layer1 = RGCNLayer(in_dim, out_dim, num_rels, aggr="add")
+        super(RGAT_PyG, self).__init__()
+        if mode == "bmm":
+            raise NotImplementedError("PyG does not provide FastRGATConv")
+        RGATLayer = RGATConv
+        self.layer1 = RGATLayer(in_dim, out_dim, num_rels, aggr="add")
         # self.layer2 = RGCNLayer(hidden_dim, out_dim, num_rels, aggr='add')
 
     def forward(self, adj, features, edge_type):

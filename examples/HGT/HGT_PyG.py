@@ -10,6 +10,7 @@ from torch_geometric.nn import MessagePassing
 from torch_geometric.utils import softmax
 
 from graphiler.utils import setup
+
 device = setup()
 
 
@@ -36,7 +37,7 @@ def get_ntype(adj, edge_type, node_type, num_rels):
 
 class HGTLayerSlice(MessagePassing):
     def __init__(self, in_feat_dim, out_feat_dim, num_node_types, num_rels):
-        super(HGTLayerSlice, self).__init__(aggr='add')
+        super(HGTLayerSlice, self).__init__(aggr="add")
         self.in_feat_dim = in_feat_dim
         self.out_feat_dim = out_feat_dim
         self.sqrt_dk = math.sqrt(self.out_feat_dim)
@@ -44,19 +45,25 @@ class HGTLayerSlice(MessagePassing):
         self.num_rels = num_rels
 
         self.k_weights = torch.rand(
-            self.num_node_types, self.in_feat_dim, self.out_feat_dim).to(device)
+            self.num_node_types, self.in_feat_dim, self.out_feat_dim
+        ).to(device)
         self.q_weights = torch.rand(
-            self.num_node_types, self.in_feat_dim, self.out_feat_dim).to(device)
+            self.num_node_types, self.in_feat_dim, self.out_feat_dim
+        ).to(device)
         self.v_weights = torch.rand(
-            self.num_node_types, self.in_feat_dim, self.out_feat_dim).to(device)
+            self.num_node_types, self.in_feat_dim, self.out_feat_dim
+        ).to(device)
         self.a_weights = torch.rand(
-            self.num_node_types, self.out_feat_dim, self.out_feat_dim).to(device)
+            self.num_node_types, self.out_feat_dim, self.out_feat_dim
+        ).to(device)
 
         self.relation_pri = torch.ones(self.num_rels, 1).to(device)
         self.relation_att = torch.rand(
-            self.num_rels, self.out_feat_dim, self.out_feat_dim).to(device)
+            self.num_rels, self.out_feat_dim, self.out_feat_dim
+        ).to(device)
         self.relation_msg = torch.rand(
-            self.num_rels, self.out_feat_dim, self.out_feat_dim).to(device)
+            self.num_rels, self.out_feat_dim, self.out_feat_dim
+        ).to(device)
 
         self.skip = torch.ones(self.num_node_types).to(device)
 
@@ -84,8 +91,7 @@ class HGTLayerSlice(MessagePassing):
             q = h @ self.q_weights[dst_ntype]
             k = k @ self.relation_att[i]
             v = v @ self.relation_msg[i]
-            out_i = self.propagate(
-                tmp, k=k, v=v, q=q, rel_pri=self.relation_pri[i])
+            out_i = self.propagate(tmp, k=k, v=v, q=q, rel_pri=self.relation_pri[i])
             out = out + out_i
 
         out = self.upd(out, node_type)
@@ -100,7 +106,7 @@ class HGTLayerSlice(MessagePassing):
 
 class HGTLayer(MessagePassing):
     def __init__(self, in_feat_dim, out_feat_dim, num_node_types, num_rels):
-        super(HGTLayer, self).__init__(aggr='add')
+        super(HGTLayer, self).__init__(aggr="add")
         # set the num_head to be 1
         self.in_feat_dim = in_feat_dim
         self.out_feat_dim = out_feat_dim
@@ -109,19 +115,25 @@ class HGTLayer(MessagePassing):
         self.num_rels = num_rels
 
         self.k_weights = torch.rand(
-            self.num_node_types, self.in_feat_dim, self.out_feat_dim).to(device)
+            self.num_node_types, self.in_feat_dim, self.out_feat_dim
+        ).to(device)
         self.q_weights = torch.rand(
-            self.num_node_types, self.in_feat_dim, self.out_feat_dim).to(device)
+            self.num_node_types, self.in_feat_dim, self.out_feat_dim
+        ).to(device)
         self.v_weights = torch.rand(
-            self.num_node_types, self.in_feat_dim, self.out_feat_dim).to(device)
+            self.num_node_types, self.in_feat_dim, self.out_feat_dim
+        ).to(device)
         self.a_weights = torch.rand(
-            self.num_node_types, self.out_feat_dim, self.out_feat_dim).to(device)
+            self.num_node_types, self.out_feat_dim, self.out_feat_dim
+        ).to(device)
 
         self.relation_pri = torch.ones(self.num_rels, 1).to(device)
         self.relation_att = torch.rand(
-            self.num_rels, self.out_feat_dim, self.out_feat_dim).to(device)
+            self.num_rels, self.out_feat_dim, self.out_feat_dim
+        ).to(device)
         self.relation_msg = torch.rand(
-            self.num_rels, self.out_feat_dim, self.out_feat_dim).to(device)
+            self.num_rels, self.out_feat_dim, self.out_feat_dim
+        ).to(device)
 
         self.skip = torch.ones(self.num_node_types).to(device)
 
@@ -143,7 +155,9 @@ class HGTLayer(MessagePassing):
         out = self.upd(h, node_type)
         return out
 
-    def message(self, x_i, x_j, edge_index_i, edge_type, node_type_i, node_type_j, size_i):
+    def message(
+        self, x_i, x_j, edge_index_i, edge_type, node_type_i, node_type_j, size_i
+    ):
         node_type_i = node_type_i.squeeze(-1)
         node_type_j = node_type_j.squeeze(-1)
         k_weight = self.k_weights[node_type_j]
@@ -161,8 +175,7 @@ class HGTLayer(MessagePassing):
         k = torch.bmm(k.unsqueeze(1), relation_att).squeeze()
         v = torch.bmm(v.unsqueeze(1), relation_msg).squeeze()
         t = k * q
-        attn_score = torch.sum(t, dim=1, keepdim=True) * \
-            relation_pri / self.sqrt_dk
+        attn_score = torch.sum(t, dim=1, keepdim=True) * relation_pri / self.sqrt_dk
         alpha = softmax(attn_score, edge_index_i, num_nodes=size_i)
 
         rst = v * alpha
@@ -170,22 +183,23 @@ class HGTLayer(MessagePassing):
 
 
 class HGT_PyG(nn.Module):
-    def __init__(self, in_dim, h_dim, out_dim, num_node_types, num_rels, mode='bmm'):
+    def __init__(self, in_dim, out_dim, num_node_types, num_rels, mode="bmm"):
         super(HGT_PyG, self).__init__()
         self.in_dim = in_dim
-        self.h_dim = h_dim
+        # self.h_dim = h_dim
         self.out_dim = out_dim
         self.num_node_types = num_node_types
         self.num_rels = num_rels
 
-        Layer = HGTLayer if mode == 'bmm' else HGTLayerSlice
+        Layer = HGTLayer if mode == "bmm" else HGTLayerSlice
 
         self.layer0 = Layer(
-            self.in_dim, self.h_dim, self.num_node_types, self.num_rels)
-        self.layer1 = Layer(
-            self.h_dim, self.out_dim, self.num_node_types, self.num_rels)
+            self.in_dim, self.out_dim, self.num_node_types, self.num_rels
+        )
+        # self.layer1 = Layer(
+        #    self.h_dim, self.out_dim, self.num_node_types, self.num_rels)
 
     def forward(self, adj, h, edge_type, node_type, src_type, dst_type):
         h = self.layer0(h, adj, edge_type, node_type, src_type, dst_type)
-        h = self.layer1(h, adj, edge_type, node_type, src_type, dst_type)
+        # h = self.layer1(h, adj, edge_type, node_type, src_type, dst_type)
         return h

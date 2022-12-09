@@ -172,7 +172,7 @@ class HGTLayer_simplified(nn.Module):
         elif flag == "naive":
             g.update_all(self.message_func, reduce_func, self.update_func)
         else:
-            assert False & "unsupported flagF"
+            assert False & "unsupported flag"
 
 
 class HGT(nn.Module):
@@ -408,6 +408,9 @@ def breakdown(dataset, feat_dim, out_dim, repeat=1000):
 
 if __name__ == "__main__":
     # repeat = int(os.environ.get('REPEAT', 50))
+    # torch.backends.cudnn.allow_tf32 = False
+    # torch.backends.cudnn.enabled = False
+    # torch.backends.cuda.matmul.allow_tf32 = False
     repeat = 1
     if len(sys.argv) != 4:
         print("usage: python HGT.py [dataset] [feat_dim] [out_dim]")

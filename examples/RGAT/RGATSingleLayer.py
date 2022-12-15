@@ -31,7 +31,7 @@ device = setup()
 BREAK_FLAG = 2
 
 # copying what RGCN used
-RGAT_FEAT_DIM = 16
+# RGAT_FEAT_DIM = 16
 
 
 # Currently Graphiler do not support full module compilation
@@ -39,16 +39,16 @@ RGAT_FEAT_DIM = 16
 # e.g., self.fc_weight, compare with GATLayer.message_func for the difference
 def message_func(edges: EdgeBatchDummy):
     # (E, 1, in_dim) * (E, in_dim, out_dim) -> (E, 1, out_dim)
-    fc_weight_src = edges.srctype["fc_weight"]
-    fc_weight_dst = edges.dsttype["fc_weight"]
-    z_s = torch.bmm(edges.src["h"].unsqueeze(1), fc_weight_src)
-    z_d = torch.bmm(edges.dst["h"].unsqueeze(1), fc_weight_dst)
+    fc_weight = edges.type["fc_weight"]
+    # fc_weight_dst = edges.type["fc_weight"]
+    z_s = torch.bmm(edges.src["h"].unsqueeze(1), fc_weight).squeeze()
+    z_d = torch.bmm(edges.dst["h"].unsqueeze(1), fc_weight).squeeze()
 
     # (E, 1, 2*out_dim)
-    z_2 = torch.cat([z_s, z_d], dim=2)
+    z_2 = torch.cat([z_s, z_d], dim=1)
 
     # (E, 1, 2*out_dim) * (E, 2*out_dim, 1) -> (E, 1, 1) > (E, 1)
-    a = torch.bmm(z_2, edges.type["attn_weight"]).squeeze(1)
+    a = torch.bmm(z_2.unsqueeze(1), edges.type["attn_weight"]).squeeze(1)
 
     return {"z": z_s, "e": F.leaky_relu_(a)}
 
@@ -70,20 +70,28 @@ class RGATLayer(nn.Module):
         self.fc_weight = torch.rand(num_rels, in_dim, out_dim).to(device)
         self.attn_weight = torch.rand(num_rels, 2 * out_dim, 1).to(device)
 
+    def reduce_func(self, nodes):
+        alpha = torch.softmax(nodes.mailbox["e"], dim=1)
+        h = torch.sum(alpha * nodes.mailbox["z"], dim=1)
+        return {"h": h}
+
+    # def update_func(self, nodes):
+    #     return {"h": nodes.data["h"]}
+
     def message_func(self, edges):
         # TODO: update according to message_func in mpdfg
         fc_weight = self.fc_weight[edges.data["_TYPE"]]
         attn_weight = self.attn_weight[edges.data["_TYPE"]]
         # (Em)
-        z_s = torch.mm(edges.src["h"], fc_weight)
-        z_d = torch.mm(edges.dst["h"], fc_weight)
+        z_s = torch.bmm(edges.src["h"].unsqueeze(1), fc_weight).squeeze()
+        z_d = torch.bmm(edges.dst["h"].unsqueeze(1), fc_weight).squeeze()
         z2 = torch.cat([z_s, z_d], dim=1)
-        a = torch.mm(z2, attn_weight)
+        a = torch.bmm(z2.unsqueeze(1), attn_weight).squeeze(1)
         return {"z": z_s, "e": torch.relu(a)}
 
     def forward(self, g, feature, compile=False):
         g.ndata["h"] = feature
-        g.ntype_data["fc_weight"] = self.fc_weight
+        g.etype_data["fc_weight"] = self.fc_weight
         g.etype_data["attn_weight"] = self.attn_weight
         if compile:
             if BREAK_FLAG == 0:
@@ -93,21 +101,21 @@ class RGATLayer(nn.Module):
             else:
                 update_all(g, mpdfg, msg_params=())
         else:
-            g.update_all(self.message_func, reduce_func)
+            g.update_all(self.message_func, self.reduce_func)
         return g.ndata.pop("h")
 
 
-class RGAT(nn.Module):
-    def __init__(self, in_dim, hidden_dim, out_dim, num_rels):
-        super(RGAT, self).__init__()
-        self.layer1 = RGATLayer(in_dim, hidden_dim, num_rels)
-        self.layer2 = RGATLayer(hidden_dim, out_dim, num_rels)
+# class RGAT(nn.Module):
+#     def __init__(self, in_dim, hidden_dim, out_dim, num_rels):
+#         super(RGAT, self).__init__()
+#         self.layer1 = RGATLayer(in_dim, hidden_dim, num_rels)
+#         self.layer2 = RGATLayer(hidden_dim, out_dim, num_rels)
 
-    def forward(self, g, features, compile=False):
-        h = self.layer1(g, features, compile)
-        h = F.elu(h)
-        h = self.layer2(g, h, compile)
-        return h
+#     def forward(self, g, features, compile=False):
+#         h = self.layer1(g, features, compile)
+#         h = F.elu(h)
+#         h = self.layer2(g, h, compile)
+#         return h
 
 
 class RGATSingleLayer(nn.Module):
@@ -160,12 +168,13 @@ def profile(dataset, feat_dim, out_dim, repeat=1000):
                     memory=True,
                     log=log,
                 )
-            check_equal(compile_res, res)
+            # check_equal(compile_res, res)
         del g, net, compile_res, res
 
     @empty_cache
     def run_pyg_slice(g, features):
         with nvtx.annotate("pyg", color="blue"):
+            edge_type = g.edata["_TYPE"]
             u, v = g.edges()
             adj = SparseTensor(
                 row=u, col=v, sparse_sizes=(g.num_src_nodes(), g.num_dst_nodes())
@@ -177,14 +186,14 @@ def profile(dataset, feat_dim, out_dim, repeat=1000):
             with torch.no_grad():
                 bench(
                     net=net_pyg,
-                    net_params=(features, adj),
+                    net_params=(adj, features, edge_type),
                     tag="2-PyG-primitives",
                     nvprof=False,
                     repeat=repeat,
                     memory=True,
                     log=log,
                 )
-            del u, v, adj, net_pyg
+            del edge_type, u, v, adj, net_pyg
 
     @empty_cache
     def run_dgl_hetero(g, features):

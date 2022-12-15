@@ -46,7 +46,6 @@ class RelationalAttLayer(nn.Module):
         Dropout rate. Default: 0.0
     """
 
-    @utils_lite.warn_default_arguments
     def __init__(
         self,
         in_feat,

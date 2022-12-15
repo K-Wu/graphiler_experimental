@@ -5,7 +5,7 @@ from torch_geometric.nn import RGATConv
 
 
 class RGAT_PyG(nn.Module):
-    def __init__(self, in_dim, out_dim, num_rels, mode="bmm"):
+    def __init__(self, in_dim, out_dim, num_rels, mode="slice"):
         super(RGAT_PyG, self).__init__()
         if mode == "bmm":
             raise NotImplementedError("PyG does not provide FastRGATConv")

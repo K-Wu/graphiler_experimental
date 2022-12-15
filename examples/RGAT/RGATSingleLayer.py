@@ -7,6 +7,8 @@ import pandas as pd
 import nvtx
 
 from torch_sparse import SparseTensor
+from RGAT_DGL import DGL_RGAT_Hetero
+from RGAT_PyG import RGAT_PyG
 
 from graphiler import EdgeBatchDummy, NodeBatchDummy, mpdfg_builder, update_all
 from graphiler.utils import (
@@ -98,13 +100,13 @@ class RGATLayer(nn.Module):
 class RGAT(nn.Module):
     def __init__(self, in_dim, hidden_dim, out_dim, num_rels):
         super(RGAT, self).__init__()
-        self.layer1 = RGATLayer(in_dim, out_dim, num_rels)
-        # self.layer2 = RGATLayer(hidden_dim, out_dim, num_rels)
+        self.layer1 = RGATLayer(in_dim, hidden_dim, num_rels)
+        self.layer2 = RGATLayer(hidden_dim, out_dim, num_rels)
 
     def forward(self, g, features, compile=False):
         h = self.layer1(g, features, compile)
         h = F.elu(h)
-        # h = self.layer2(g, h, compile)
+        h = self.layer2(g, h, compile)
         return h
 
 
@@ -162,14 +164,14 @@ def profile(dataset, feat_dim, out_dim, repeat=1000):
         del g, net, compile_res, res
 
     @empty_cache
-    def run_pyg(g, features):
+    def run_pyg_slice(g, features):
         with nvtx.annotate("pyg", color="blue"):
             u, v = g.edges()
             adj = SparseTensor(
                 row=u, col=v, sparse_sizes=(g.num_src_nodes(), g.num_dst_nodes())
             ).to(device)
             net_pyg = RGAT_PyG(
-                in_dim=feat_dim, hidden_dim=DEFAULT_DIM, out_dim=DEFAULT_DIM
+                in_dim=feat_dim, out_dim=out_dim, num_rels=g.num_rels
             ).to(device)
             net_pyg.eval()
             with torch.no_grad():
@@ -185,11 +187,15 @@ def profile(dataset, feat_dim, out_dim, repeat=1000):
             del u, v, adj, net_pyg
 
     @empty_cache
-    def run_dgl(g, features):
+    def run_dgl_hetero(g, features):
         with nvtx.annotate("dgl", color="purple"):
             g = g.to(device)
-            net_dgl = RGAT_DGL(
-                in_dim=feat_dim, hidden_dim=DEFAULT_DIM, out_dim=DEFAULT_DIM
+            net_dgl = DGL_RGAT_Hetero(
+                g=g,
+                h_dim=feat_dim,
+                out_dim=out_dim,
+                n_heads=1,
+                num_hidden_layers=0,  # , num_rels = g.num_rels
             ).to(device)
             net_dgl.eval()
             with torch.no_grad():
@@ -205,8 +211,8 @@ def profile(dataset, feat_dim, out_dim, repeat=1000):
             del g, net_dgl
 
     run_baseline_graphiler(g, features)
-    run_pyg(g, features)
-    run_dgl(g, features)
+    run_pyg_slice(g, features)
+    run_dgl_hetero(g, features)
 
     return log
 

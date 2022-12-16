@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import sys
 import os
 import torch
@@ -136,6 +137,7 @@ def profile(dataset, feat_dim, out_dim, repeat=1000):
     )
     print("benchmarking on: " + dataset)
     g, features = load_data(dataset, feat_dim, prepare=False)
+    g_hetero, _ = load_data(dataset, feat_dim, to_homo=False)
     features = features.to(device)
 
     @empty_cache
@@ -210,7 +212,7 @@ def profile(dataset, feat_dim, out_dim, repeat=1000):
             with torch.no_grad():
                 bench(
                     net=net_dgl,
-                    net_params=(g, features),
+                    net_params=(g, g.ndata["h"]),
                     tag="1-DGL-primitives",
                     nvprof=False,
                     repeat=repeat,
@@ -220,8 +222,8 @@ def profile(dataset, feat_dim, out_dim, repeat=1000):
             del g, net_dgl
 
     run_baseline_graphiler(g, features)
+    run_dgl_hetero(g_hetero, features)
     run_pyg_slice(g, features)
-    run_dgl_hetero(g, features)
 
     return log
 

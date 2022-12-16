@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import torch.nn as nn
 import torch.nn.functional as F
 
@@ -6,7 +7,9 @@ import torch.nn.functional as F
 
 class RGAT_PyG(nn.Module):
     def __init__(self, in_dim, out_dim, num_rels, mode="slice"):
-        from rgat_conv_copy import RGATConv
+        from torch_geometric.nn import RGATConv
+
+        # from rgat_conv_copy import RGATConv
 
         super(RGAT_PyG, self).__init__()
         if mode == "bmm":

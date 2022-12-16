@@ -228,7 +228,7 @@ class DGL_RGAT_Hetero(nn.Module):
         for layer in self.layers:
             layer.reset_parameters()
 
-    def forward(self, h=None, blocks: Union[None, DGLBlock] = None):
+    def forward(self, g, h=None, blocks: Union[None, DGLBlock] = None):
         """Forward computation
 
         Parameters
@@ -241,7 +241,7 @@ class DGL_RGAT_Hetero(nn.Module):
         if blocks is None:
             # full graph training
             for layer in self.layers:
-                h = layer(self.g, h)
+                h = layer(g, h)
         else:
             # minibatch training
             for layer, block in zip(self.layers, blocks):

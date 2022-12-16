@@ -52,8 +52,9 @@ def profile(dataset, feat_dim, out_dim, repeat=1000):
             adj = SparseTensor(
                 row=u, col=v, sparse_sizes=(g.num_src_nodes(), g.num_dst_nodes())
             ).to(device)
+            # print(len(g.canonical_etypes))
             net_pyg = RGAT_PyG(
-                in_dim=feat_dim, out_dim=out_dim, num_rels=len(g.canonical_etypes)
+                in_dim=feat_dim, out_dim=out_dim, num_rels=int(edge_type.max() + 1)
             ).to(device)
             net_pyg.eval()
             # print type of g.edata['_ID']

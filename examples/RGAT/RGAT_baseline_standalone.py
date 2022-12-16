@@ -11,6 +11,7 @@ from bench_softlink import (
 )
 from torch_sparse import SparseTensor
 from RGAT_PyG import RGAT_PyG
+from RGAT_DGL import DGL_RGAT_Hetero
 
 import dgl
 import sys
@@ -34,8 +35,8 @@ def profile(dataset, feat_dim, out_dim, repeat=1000):
     )
     print("benchmarking on: " + dataset)
     # g, features = load_data(dataset, feat_dim, prepare=False)
-    g = load_data_as_dgl_graph(dataset)
-    g = dgl.to_homogeneous(g)
+    g_hetero = load_data_as_dgl_graph(dataset)
+    g = dgl.to_homogeneous(g_hetero)
     features = torch.rand(
         [sum([g.number_of_nodes(ntype) for ntype in g.ntypes]), feat_dim]
     )
@@ -72,6 +73,31 @@ def profile(dataset, feat_dim, out_dim, repeat=1000):
                 )
             del edge_type, u, v, adj, net_pyg
 
+    @empty_cache
+    def run_dgl_hetero(g, features):
+        with nvtx.annotate("dgl", color="purple"):
+            g = g.to(device)
+            net_dgl = DGL_RGAT_Hetero(
+                g=g,
+                h_dim=feat_dim,
+                out_dim=out_dim,
+                n_heads=1,
+                num_hidden_layers=0,  # , num_rels = g.num_rels
+            ).to(device)
+            net_dgl.eval()
+            with torch.no_grad():
+                bench(
+                    net=net_dgl,
+                    net_params=(g, g.ndata["h"]),
+                    tag="1-DGL-primitives",
+                    nvprof=False,
+                    repeat=repeat,
+                    memory=True,
+                    log=log,
+                )
+            del g, net_dgl
+
+    run_dgl_hetero(g_hetero, features)
     run_pyg_slice(g, features)
 
 

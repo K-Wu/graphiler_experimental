@@ -64,6 +64,7 @@ def profile(dataset, feat_dim, out_dim, repeat=1000):
     features = torch.rand(
         [sum([g.number_of_nodes(ntype) for ntype in g.ntypes]), feat_dim]
     )
+    print(features.shape)
 
     features = features.to(device)
 

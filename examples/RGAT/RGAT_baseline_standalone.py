@@ -112,9 +112,6 @@ if __name__ == "__main__":
             log[d] = profile(d, int(sys.argv[2]), int(sys.argv[3]), repeat)
         pd.DataFrame(log).to_pickle("output/RGAT.pkl")
     elif sys.argv[1] == "breakdown":
-        log = {}
-        for d in hetero_dataset:
-            log[d] = breakdown(d, int(sys.argv[2]), int(sys.argv[3]), repeat)
-        pd.DataFrame(log).to_pickle("output/RGAT_breakdown.pkl")
+        raise NotImplementedError("implemented only for graphiler-related routines")
     else:
         profile(sys.argv[1], int(sys.argv[2]), int(sys.argv[3]), repeat)

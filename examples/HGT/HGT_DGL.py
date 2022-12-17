@@ -137,3 +137,54 @@ class HGT_DGLHetero(nn.Module):
         h = self.layer0(G, h)
         # h = self.layer1(G, h)
         return h
+
+
+# TODO: implement HGT SegmentMM with hgtconv in lib/python3.9/site-packages/dgl/nn/pytorch/conv/hgtconv.py
+class HGT_DGL_SegmentMM(nn.Module):
+    def __init__(
+        self,
+        in_size,
+        head_size,
+        num_heads,
+        num_ntypes,
+        num_etypes,
+        dropout=0.2,
+        use_norm=False,
+    ):
+        from dgl.nn.pytorch.conv import HGTConv
+
+        super(HGT_DGL_SegmentMM, self).__init__()
+        self.layer1 = HGTConv(
+            in_size,
+            head_size,
+            num_heads,
+            num_ntypes,
+            num_etypes,
+            dropout=dropout,
+            use_norm=use_norm,
+        )
+
+    def forward(self, g, x, ntype, etype, presorted=False):
+        """
+        Parameters
+        ----------
+        g : DGLGraph
+            The input graph.
+        x : torch.Tensor
+            A 2D tensor of node features. Shape: :math:`(|V|, D_{in})`.
+        ntype : torch.Tensor
+            An 1D integer tensor of node types. Shape: :math:`(|V|,)`.
+        etype : torch.Tensor
+            An 1D integer tensor of edge types. Shape: :math:`(|E|,)`.
+        presorted : bool, optional
+            Whether *both* the nodes and the edges of the input graph have been sorted by
+            their types. Forward on pre-sorted graph may be faster. Graphs created by
+            :func:`~dgl.to_homogeneous` automatically satisfy the condition.
+            Also see :func:`~dgl.reorder_graph` for manually reordering the nodes and edges.
+
+        Returns
+        -------
+        torch.Tensor
+            New node features. Shape: :math:`(|V|, D_{head} * N_{head})`.
+        """
+        return self.layer1(g, x, ntype, etype, presorted=presorted)

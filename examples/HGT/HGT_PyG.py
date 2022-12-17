@@ -9,7 +9,7 @@ import torch.nn as nn
 from torch_geometric.nn import MessagePassing
 from torch_geometric.utils import softmax
 
-from graphiler.utils import setup
+from setup_lite_softlink import setup
 
 device = setup()
 

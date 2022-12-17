@@ -21,7 +21,7 @@ from graphiler.utils import (
 import dgl.function as fn
 from dgl.nn.functional import edge_softmax
 
-from HGT_DGL import HGT_DGLHetero
+from HGT_DGL import HGT_DGLHetero, HGT_DGL_SegmentMM
 from HGT_PyG import HGT_PyG, get_ntype
 
 device = setup()
@@ -284,6 +284,27 @@ def profile(dataset, feat_dim, out_dim, repeat=1000):
             del g_hetero, node_dict, edge_dict, net_hetero
 
     @empty_cache
+    def run_dgl_segmentmm(g, features):
+        with nvtx.annotate("dgl-segmentmm", color="purple"):
+            g = g.to(device)
+            # norm = torch.rand(g.num_edges(), 1).to(device)
+            net_dgl = HGT_DGL_SegmentMM(
+                feat_dim, out_dim, 1, g.num_ntypes, g.num_rels
+            ).to(device)
+            net_dgl.eval()
+            with torch.no_grad():
+                bench(
+                    net=net_dgl,
+                    net_params=(g, features, g.ndata["_TYPE"], g.edata["_TYPE"], True),
+                    tag="3MK1-DGL-segmentmm",
+                    nvprof=False,
+                    repeat=repeat,
+                    memory=True,
+                    log=log,
+                )
+            del g, net_dgl  # , norm
+
+    @empty_cache
     def run_pyg_slice(g, features):
 
         with nvtx.annotate("pyg-slice", color="blue"):
@@ -348,6 +369,7 @@ def profile(dataset, feat_dim, out_dim, repeat=1000):
 
     run_baseline_graphiler(g, features)
     run_dgl_slice(g_hetero, features)
+    run_dgl_segmentmm(g, features)
     run_pyg_bmm(g, features)
     run_pyg_slice(g, features)
 

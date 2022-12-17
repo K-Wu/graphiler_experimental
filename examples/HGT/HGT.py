@@ -16,7 +16,9 @@ from graphiler.utils import (
     hetero_dataset,
     init_log,
     empty_cache,
+    bench_with_bck_prop,
 )
+import contextlib
 
 import dgl.function as fn
 from dgl.nn.functional import edge_softmax
@@ -270,17 +272,21 @@ def profile(dataset, feat_dim, out_dim, repeat=1000):
             net_hetero = HGT_DGLHetero(node_dict, edge_dict, feat_dim, out_dim).to(
                 device
             )
-            net_hetero.eval()
-            with torch.no_grad():
-                bench(
-                    net=net_hetero,
-                    net_params=(g_hetero, g_hetero.ndata["h"]),
-                    tag="1-DGL-slice",
-                    nvprof=False,
-                    repeat=repeat,
-                    memory=True,
-                    log=log,
-                )
+            for (switch_func, bench_func, cm) in [
+                (net_hetero.eval, bench, torch.no_grad),
+                (net_hetero.train, bench_with_bck_prop, contextlib.nullcontext),
+            ]:
+                switch_func()
+                with cm():
+                    bench_func(
+                        net=net_hetero,
+                        net_params=(g_hetero, g_hetero.ndata["h"]),
+                        tag="1-DGL-slice",
+                        nvprof=False,
+                        repeat=repeat,
+                        memory=True,
+                        log=log,
+                    )
             del g_hetero, node_dict, edge_dict, net_hetero
 
     @empty_cache
@@ -291,17 +297,27 @@ def profile(dataset, feat_dim, out_dim, repeat=1000):
             net_dgl = HGT_DGL_SegmentMM(
                 feat_dim, out_dim, 1, g.num_ntypes, g.num_rels
             ).to(device)
-            net_dgl.eval()
-            with torch.no_grad():
-                bench(
-                    net=net_dgl,
-                    net_params=(g, features, g.ndata["_TYPE"], g.edata["_TYPE"], True),
-                    tag="3MK1-DGL-segmentmm",
-                    nvprof=False,
-                    repeat=repeat,
-                    memory=True,
-                    log=log,
-                )
+            for (switch_func, bench_func, cm) in [
+                (net_dgl.eval, bench, torch.no_grad),
+                (net_dgl.train, bench_with_bck_prop, contextlib.nullcontext),
+            ]:
+                switch_func()
+                with cm():
+                    bench_func(
+                        net=net_dgl,
+                        net_params=(
+                            g,
+                            features,
+                            g.ndata["_TYPE"],
+                            g.edata["_TYPE"],
+                            True,
+                        ),
+                        tag="3MK1-DGL-segmentmm",
+                        nvprof=False,
+                        repeat=repeat,
+                        memory=True,
+                        log=log,
+                    )
             del g, net_dgl  # , norm
 
     @empty_cache

@@ -23,7 +23,12 @@ import pandas as pd
 import nvtx
 
 
-from setup_lite_softlink import load_data_as_dgl_graph, hetero_dataset, setup
+from setup_lite_softlink import (
+    load_data_as_dgl_graph,
+    hetero_dataset,
+    setup,
+    prepare_hetero_graph_simplified,
+)
 
 device = setup()
 
@@ -40,6 +45,7 @@ def profile(dataset, feat_dim, out_dim, repeat=1000):
     features = torch.rand(
         [sum([g.number_of_nodes(ntype) for ntype in g.ntypes]), feat_dim]
     )
+    g_hetero, _ = prepare_hetero_graph_simplified(g_hetero, features)
 
     features = features.to(device)
 
@@ -84,6 +90,7 @@ def profile(dataset, feat_dim, out_dim, repeat=1000):
                 n_heads=1,
                 num_hidden_layers=0,  # , num_rels = g.num_rels
             ).to(device)
+            # print(g.ndata["h"])
             net_dgl.eval()
             with torch.no_grad():
                 bench(

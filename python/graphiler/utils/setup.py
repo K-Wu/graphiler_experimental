@@ -96,26 +96,6 @@ def prepare_graph(g, ntype=None):
     return g
 
 
-def prepare_hetero_graph_simplified(g, features, nkey="h"):
-    ntype_id = {name: i for i, name in enumerate(g.ntypes)}
-    ntype_pointer = np.cumsum([0] + [g.number_of_nodes(ntype) for ntype in g.ntypes])
-    for ntype, i in ntype_id.items():
-        g.nodes[ntype].data[nkey] = features[ntype_pointer[i] : ntype_pointer[i + 1]]
-
-    etype_pointer = [0]
-    for etype in g.canonical_etypes:
-        g_sub = g[etype]
-        etype_pointer.append(etype_pointer[-1] + g_sub.num_edges())
-
-    return (
-        g,
-        {
-            "ntype_node_pointer": torch.IntTensor(ntype_pointer),
-            "etype_edge_pointer": torch.IntTensor(etype_pointer),
-        },
-    )
-
-
 if __name__ == "__main__":
     # a place for testing data loading
     for dataset in homo_dataset:

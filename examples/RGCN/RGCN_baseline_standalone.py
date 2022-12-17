@@ -31,7 +31,12 @@ from bench_softlink import (
     empty_cache,
 )
 
-from setup_lite_softlink import load_data_as_dgl_graph, hetero_dataset, setup
+from setup_lite_softlink import (
+    load_data_as_dgl_graph,
+    hetero_dataset,
+    setup,
+    prepare_hetero_graph_simplified,
+)
 
 from RGCN_DGL import RGCN_DGL, RGCN_DGL_hetero
 from RGCN_PyG import RGCN_PyG
@@ -64,7 +69,8 @@ def profile(dataset, feat_dim, out_dim, repeat=1000):
     features = torch.rand(
         [sum([g.number_of_nodes(ntype) for ntype in g.ntypes]), feat_dim]
     )
-    print(features.shape)
+    g_hetero, _ = prepare_hetero_graph_simplified(g_hetero, features)
+    # print(features.shape)
 
     features = features.to(device)
 

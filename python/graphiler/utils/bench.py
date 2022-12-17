@@ -3,6 +3,8 @@ import torch
 import numpy as np
 import pandas as pd
 
+import contextlib
+
 from dgl import DGLError
 from torch.cuda import (
     profiler,
@@ -57,7 +59,14 @@ def bench(net, net_params, tag="", nvprof=False, memory=False, repeat=1000, log=
 
 
 def bench_with_bck_prop(
-    net, net_params, tag="", nvprof=False, memory=False, repeat=1000, log=None
+    net,
+    net_params,
+    tag="",
+    nvprof=False,
+    memory=False,
+    repeat=1000,
+    log=None,
+    nvtx=False,
 ):
     try:
         optimizer = torch.optim.AdamW(net.parameters())
@@ -89,14 +98,33 @@ def bench_with_bck_prop(
         start_time = time.time()
         for i in range(repeat):
             optimizer.zero_grad()
-            logits = net(*net_params)
-            if type(logits) is torch.Tensor:
-                logits.backward(grad_logits)
+            if nvtx and i == 0:
+                import nvtx
+
+                cm0 = torch.cuda.profiler.profile()
+                cm1 = torch.autograd.profiler.emit_nvtx()
+                cm2_0 = nvtx.annotate("forward", color="purple")
+                cm2_1 = nvtx.annotate("backward", color="green")
+                cm2_2 = nvtx.annotate("optimizer_step", color="green")
             else:
-                for k, v in grad_logits.items():
-                    logits[k].backward(v)
-            optimizer.step()
-            scheduler.step()
+                cm0 = contextlib.nullcontext()
+                cm1 = contextlib.nullcontext()
+                cm2_0 = contextlib.nullcontext()
+                cm2_1 = contextlib.nullcontext()
+                cm2_2 = contextlib.nullcontext()
+            with cm0:
+                with cm1:
+                    with cm2_0:
+                        logits = net(*net_params)
+                    with cm2_1:
+                        if type(logits) is torch.Tensor:
+                            logits.backward(grad_logits)
+                        else:
+                            for k, v in grad_logits.items():
+                                logits[k].backward(v)
+                    with cm2_2:
+                        optimizer.step()
+                        scheduler.step()
         synchronize()
         if nvprof:
             profiler.stop()

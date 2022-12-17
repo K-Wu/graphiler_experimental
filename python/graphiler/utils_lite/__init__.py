@@ -1,1 +1,1 @@
-from setup_lite import *
+from .setup_lite import *

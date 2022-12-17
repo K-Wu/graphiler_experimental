@@ -85,10 +85,10 @@ Please go `artifact` directory for more information.
 
 ### Profiling operator breakdown of RGNN models executed by PyG and DGL
 The corresponding RGCN, RGAT, HGT operators in the following source files could be nvtx-annotated to achieve this.
-lib/python3.9/site-packages/dgl/nn/pytorch/conv/hgtconv.py
-lib/python3.9/site-packages/dgl/nn/pytorch/conv/gatconv.py
-lib/python3.9/site-packages/dgl/nn/pytorch/hetero.py
-lib/python3.9/site-packages/dgl/nn/pytorch/conv/graphconv.py
-lib/python3.9/site-packages/dgl/nn/pytorch/conv/relgraphconv.py
-lib/python3.9/site-packages/torch_geometric/nn/conv/rgcn_conv.py
-lib/python3.9/site-packages/torch_geometric/nn/conv/rgat_conv.py
+* lib/python3.9/site-packages/dgl/nn/pytorch/conv/hgtconv.py
+* lib/python3.9/site-packages/dgl/nn/pytorch/conv/gatconv.py
+* lib/python3.9/site-packages/dgl/nn/pytorch/hetero.py
+* lib/python3.9/site-packages/dgl/nn/pytorch/conv/graphconv.py
+* lib/python3.9/site-packages/dgl/nn/pytorch/conv/relgraphconv.py
+* lib/python3.9/site-packages/torch_geometric/nn/conv/rgcn_conv.py
+* lib/python3.9/site-packages/torch_geometric/nn/conv/rgat_conv.py

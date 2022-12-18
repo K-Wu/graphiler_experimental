@@ -220,10 +220,14 @@ def profile(dataset, feat_dim, out_dim, repeat=1000):
             del edge_type, u, v, adj, net_pyg_slice
 
     run_baseline_graphiler(g, features)
-    run_dgl_bmm(g, features)
-    run_dgl_hetero(g_hetero, features)
-    run_pyg_bmm(g, features)
-    run_pyg_slice(g, features)
+    print(
+        "Warning: baselines are disabled in this script to make sure we are using the latest version of dgl and pyg"
+    )
+    if False:
+        run_dgl_bmm(g, features)
+        run_dgl_hetero(g_hetero, features)
+        run_pyg_bmm(g, features)
+        run_pyg_slice(g, features)
 
     return log
 

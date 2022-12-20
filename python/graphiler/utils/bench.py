@@ -66,7 +66,7 @@ def bench_with_bck_prop(
     memory=False,
     repeat=1000,
     log=None,
-    nvtx=False,
+    nvtx=True,
 ):
     try:
         optimizer = torch.optim.AdamW(net.parameters())

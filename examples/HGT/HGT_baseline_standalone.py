@@ -39,7 +39,10 @@ from HGT_PyG import HGT_PyG, get_ntype
 device = setup()
 
 
-def profile(dataset, feat_dim, out_dim, repeat=1000):
+def profile(dataset, feat_dim, out_dim, repeat=1000, bench_item="abcd-+"):
+    # '-' means enabling profiling inference
+    # '+' means enabling profiling training
+
     log = init_log(
         [
             "0-DGL-UDF",
@@ -74,10 +77,14 @@ def profile(dataset, feat_dim, out_dim, repeat=1000):
                 device
             )
 
-            for (switch_func, bench_func, cm) in [
-                (net_hetero.eval, bench, torch.no_grad),
-                (net_hetero.train, bench_with_bck_prop, contextlib.nullcontext),
-            ]:
+            switch_bench_cm_list = []
+            if "-" in bench_item:
+                switch_bench_cm_list.append((net_hetero.eval, bench, torch.no_grad))
+            if "+" in bench_item:
+                switch_bench_cm_list.append(
+                    (net_hetero.train, bench_with_bck_prop, contextlib.nullcontext)
+                )
+            for (switch_func, bench_func, cm) in switch_bench_cm_list:
                 switch_func()
                 with cm():
                     # print(g_hetero.ndata["h"])
@@ -104,10 +111,15 @@ def profile(dataset, feat_dim, out_dim, repeat=1000):
                 int(g.ndata["_TYPE"].max()) + 1,
                 int(g.edata["_TYPE"].max()) + 1,
             ).to(device)
-            for (switch_func, bench_func, cm) in [
-                (net_dgl.eval, bench, torch.no_grad),
-                (net_dgl.train, bench_with_bck_prop, contextlib.nullcontext),
-            ]:
+
+            switch_bench_cm_list = []
+            if "-" in bench_item:
+                switch_bench_cm_list.append((net_dgl.eval, bench, torch.no_grad))
+            if "+" in bench_item:
+                switch_bench_cm_list.append(
+                    (net_dgl.train, bench_with_bck_prop, contextlib.nullcontext)
+                )
+            for (switch_func, bench_func, cm) in switch_bench_cm_list:
                 switch_func()
                 with cm():
                     bench_func(
@@ -140,10 +152,15 @@ def profile(dataset, feat_dim, out_dim, repeat=1000):
             net_pyg_slice = HGT_PyG(
                 feat_dim, out_dim, g.num_ntypes, g.num_rels, mode="slice"
             ).to(device)
-            for (switch_func, bench_func, cm) in [
-                (net_pyg_slice.eval, bench, torch.no_grad),
-                (net_pyg_slice.train, bench_with_bck_prop, contextlib.nullcontext),
-            ]:
+
+            switch_bench_cm_list = []
+            if "-" in bench_item:
+                switch_bench_cm_list.append((net_pyg_slice.eval, bench, torch.no_grad))
+            if "+" in bench_item:
+                switch_bench_cm_list.append(
+                    (net_pyg_slice.train, bench_with_bck_prop, contextlib.nullcontext)
+                )
+            for (switch_func, bench_func, cm) in switch_bench_cm_list:
                 switch_func()
                 with cm():
                     bench_func(
@@ -177,10 +194,14 @@ def profile(dataset, feat_dim, out_dim, repeat=1000):
                 feat_dim, out_dim, g.num_ntypes, g.num_rels, mode="bmm"
             ).to(device)
 
-            for (switch_func, bench_func, cm) in [
-                (net_pyg_bmm.eval, bench, torch.no_grad),
-                (net_pyg_bmm.train, bench_with_bck_prop, contextlib.nullcontext),
-            ]:
+            switch_bench_cm_list = []
+            if "-" in bench_item:
+                switch_bench_cm_list.append((net_pyg_bmm.eval, bench, torch.no_grad))
+            if "+" in bench_item:
+                switch_bench_cm_list.append(
+                    (net_pyg_bmm.train, bench_with_bck_prop, contextlib.nullcontext)
+                )
+            for (switch_func, bench_func, cm) in switch_bench_cm_list:
                 switch_func()
                 with cm():
                     bench_func(
@@ -201,10 +222,14 @@ def profile(dataset, feat_dim, out_dim, repeat=1000):
                     )
             del u, v, adj, src_type, dst_type, net_pyg_bmm
 
-    run_dgl_slice(g_hetero, features)
-    run_dgl_segmentmm(g, features)
-    run_pyg_bmm(g, features)
-    run_pyg_slice(g, features)
+    if "a" in bench_item:
+        run_dgl_slice(g_hetero, features)
+    if "b" in bench_item:
+        run_dgl_segmentmm(g, features)
+    if "c" in bench_item:
+        run_pyg_bmm(g, features)
+    if "d" in bench_item:
+        run_pyg_slice(g, features)
 
     return log
 
@@ -215,15 +240,31 @@ if __name__ == "__main__":
     # torch.backends.cudnn.enabled = False
     # torch.backends.cuda.matmul.allow_tf32 = False
     repeat = 1
-    if len(sys.argv) != 4:
-        print("usage: python HGT.py [dataset] [feat_dim] [out_dim]")
+    if len(sys.argv) != 4 and len(sys.argv) != 5:
+        print(
+            "usage: python HGT.py [dataset] [feat_dim] [out_dim] [bench_item abcd-+ (optional)]"
+        )
         exit()
     if sys.argv[1] == "all":
         log = {}
         for d in hetero_dataset:
-            log[d] = profile(d, int(sys.argv[2]), int(sys.argv[3]), repeat)
+            if len(sys.argv) == 5:
+                log[d] = profile(
+                    d, int(sys.argv[2]), int(sys.argv[3]), repeat, sys.argv[4].strip()
+                )
+            else:
+                log[d] = profile(d, int(sys.argv[2]), int(sys.argv[3]), repeat)
         pd.DataFrame(log).to_pickle("output/HGT.pkl")
     elif sys.argv[1] == "breakdown":
         raise NotImplementedError("implemented only for graphiler-related routines")
     else:
-        profile(sys.argv[1], int(sys.argv[2]), int(sys.argv[3]), repeat)
+        if len(sys.argv) == 5:
+            profile(
+                sys.argv[1],
+                int(sys.argv[2]),
+                int(sys.argv[3]),
+                repeat,
+                sys.argv[4].strip(),
+            )
+        else:
+            profile(sys.argv[1], int(sys.argv[2]), int(sys.argv[3]), repeat)

@@ -19,6 +19,8 @@ import nvtx
 #     empty_cache,
 # )
 
+import contextlib
+
 import dgl
 
 from bench_softlink import (
@@ -26,6 +28,7 @@ from bench_softlink import (
     # setup,
     check_equal,
     bench,
+    bench_with_bck_prop,
     # hetero_dataset,
     init_log,
     empty_cache,
@@ -48,7 +51,7 @@ device = setup()
 RGCN_FEAT_DIM = 16
 
 
-def profile(dataset, feat_dim, out_dim, repeat=1000):
+def profile(dataset, feat_dim, out_dim, repeat=1000, bench_item="abcd-+"):
     log = init_log(
         [
             "0-DGL-UDF",
@@ -82,17 +85,26 @@ def profile(dataset, feat_dim, out_dim, repeat=1000):
             net_dgl_hetero = RGCN_DGL_hetero(
                 feat_dim, out_dim, rel_names, len(rel_names)
             ).to(device)
-            net_dgl_hetero.eval()
-            with torch.no_grad():
-                bench(
-                    net=net_dgl_hetero,
-                    net_params=(g_hetero, g_hetero.ndata["h"]),
-                    tag="1-DGL-slice",
-                    nvprof=False,
-                    repeat=repeat,
-                    memory=True,
-                    log=log,
+
+            switch_bench_cm_list = []
+            if "-" in bench_item:
+                switch_bench_cm_list.append((net_dgl_hetero.eval, bench, torch.no_grad))
+            if "+" in bench_item:
+                switch_bench_cm_list.append(
+                    (net_dgl_hetero.train, bench_with_bck_prop, contextlib.nullcontext)
                 )
+            for (switch_func, bench_func, cm) in switch_bench_cm_list:
+                switch_func()
+                with cm():
+                    bench_func(
+                        net=net_dgl_hetero,
+                        net_params=(g_hetero, g_hetero.ndata["h"]),
+                        tag="1-DGL-slice",
+                        nvprof=False,
+                        repeat=repeat,
+                        memory=True,
+                        log=log,
+                    )
             del g_hetero, rel_names, net_dgl_hetero
 
     @empty_cache
@@ -104,17 +116,26 @@ def profile(dataset, feat_dim, out_dim, repeat=1000):
             net_pyg_bmm = RGCN_PyG(
                 feat_dim, out_dim, int(edge_type.max() + 1), mode="bmm"
             ).to(device)
-            net_pyg_bmm.eval()
-            with torch.no_grad():
-                bench(
-                    net=net_pyg_bmm,
-                    net_params=(adj, features, edge_type),
-                    tag="4-PyG-bmm",
-                    nvprof=False,
-                    repeat=repeat,
-                    memory=True,
-                    log=log,
+
+            switch_bench_cm_list = []
+            if "-" in bench_item:
+                switch_bench_cm_list.append((net_pyg_bmm.eval, bench, torch.no_grad))
+            if "+" in bench_item:
+                switch_bench_cm_list.append(
+                    (net_pyg_bmm.train, bench_with_bck_prop, contextlib.nullcontext)
                 )
+            for (switch_func, bench_func, cm) in switch_bench_cm_list:
+                switch_func()
+                with cm():
+                    bench_func(
+                        net=net_pyg_bmm,
+                        net_params=(adj, features, edge_type),
+                        tag="4-PyG-bmm",
+                        nvprof=False,
+                        repeat=repeat,
+                        memory=True,
+                        log=log,
+                    )
             del edge_type, u, v, adj, net_pyg_bmm
 
     @empty_cache
@@ -124,17 +145,26 @@ def profile(dataset, feat_dim, out_dim, repeat=1000):
             g = g.to(device)
             norm = torch.rand(g.num_edges(), 1).to(device)
             net_dgl = RGCN_DGL(feat_dim, out_dim, int(edge_type.max() + 1)).to(device)
-            net_dgl.eval()
-            with torch.no_grad():
-                bench(
-                    net=net_dgl,
-                    net_params=(g, features, g.edata["_TYPE"], norm),
-                    tag="3-DGL-bmm",
-                    nvprof=False,
-                    repeat=repeat,
-                    memory=True,
-                    log=log,
+
+            switch_bench_cm_list = []
+            if "-" in bench_item:
+                switch_bench_cm_list.append((net_dgl.eval, bench, torch.no_grad))
+            if "+" in bench_item:
+                switch_bench_cm_list.append(
+                    (net_dgl.train, bench_with_bck_prop, contextlib.nullcontext)
                 )
+            for (switch_func, bench_func, cm) in switch_bench_cm_list:
+                switch_func()
+                with cm():
+                    bench_func(
+                        net=net_dgl,
+                        net_params=(g, features, g.edata["_TYPE"], norm),
+                        tag="3-DGL-bmm (segmentmm in latest dgl)",
+                        nvprof=False,
+                        repeat=repeat,
+                        memory=True,
+                        log=log,
+                    )
             del g, norm, net_dgl
 
     @empty_cache
@@ -143,26 +173,40 @@ def profile(dataset, feat_dim, out_dim, repeat=1000):
             edge_type = g.edata["_TYPE"]
             u, v = g.edges()
             adj = torch.stack([u, v]).to(device)
+
             net_pyg_slice = RGCN_PyG(
                 feat_dim, out_dim, int(edge_type.max() + 1), mode="slice"
             ).to(device)
-            net_pyg_slice.eval()
-            with torch.no_grad():
-                bench(
-                    net=net_pyg_slice,
-                    net_params=(adj, features, edge_type),
-                    tag="2-PyG-slice",
-                    nvprof=False,
-                    repeat=repeat,
-                    memory=True,
-                    log=log,
+
+            switch_bench_cm_list = []
+            if "-" in bench_item:
+                switch_bench_cm_list.append((net_pyg_slice.eval, bench, torch.no_grad))
+            if "+" in bench_item:
+                switch_bench_cm_list.append(
+                    (net_pyg_slice.train, bench_with_bck_prop, contextlib.nullcontext)
                 )
+            for (switch_func, bench_func, cm) in switch_bench_cm_list:
+                switch_func()
+                with cm():
+                    bench_func(
+                        net=net_pyg_slice,
+                        net_params=(adj, features, edge_type),
+                        tag="2-PyG-slice",
+                        nvprof=False,
+                        repeat=repeat,
+                        memory=True,
+                        log=log,
+                    )
             del edge_type, u, v, adj, net_pyg_slice
 
-    run_dgl_bmm(g, features)
-    run_dgl_hetero(g_hetero, features)
-    run_pyg_bmm(g, features)
-    run_pyg_slice(g, features)
+    if "a" in bench_item:
+        run_dgl_bmm(g, features)
+    if "b" in bench_item:
+        run_dgl_hetero(g_hetero, features)
+    if "c" in bench_item:
+        run_pyg_bmm(g, features)
+    if "d" in bench_item:
+        run_pyg_slice(g, features)
 
     return log
 
@@ -170,13 +214,29 @@ def profile(dataset, feat_dim, out_dim, repeat=1000):
 if __name__ == "__main__":
     # repeat = int(os.environ.get('REPEAT', 50))
     repeat = 1
-    if len(sys.argv) != 4:
-        print("usage: python GCN.py [dataset] [feat_dim] [out_dim]")
+    if len(sys.argv) != 4 and len(sys.argv) != 5:
+        print(
+            "usage: python GCN.py [dataset] [feat_dim] [out_dim] [bench idx abcd-+ (optional)]"
+        )
         exit()
     if sys.argv[1] == "all":
         log = {}
         for d in hetero_dataset:
-            log[d] = profile(d, RGCN_FEAT_DIM, repeat)
+            if len(sys.argv) == 5:
+                log[d] = profile(
+                    d, int(sys.argv[2]), int(sys.argv[3]), repeat, sys.argv[4].strip()
+                )
+            else:
+                log[d] = profile(d, int(sys.argv[2]), int(sys.argv[3]), repeat)
         pd.DataFrame(log).to_pickle("output/RGCN.pkl")
     else:
-        profile(sys.argv[1], int(sys.argv[2]), int(sys.argv[3]), repeat)
+        if len(sys.argv) == 5:
+            log = profile(
+                sys.argv[1],
+                int(sys.argv[2]),
+                int(sys.argv[3]),
+                repeat,
+                sys.argv[4].strip(),
+            )
+        else:
+            profile(sys.argv[1], int(sys.argv[2]), int(sys.argv[3]), repeat)

@@ -141,6 +141,7 @@ if __name__ == "__main__":
     if sys.argv[1] == "all":
         log = {}
         for d in hetero_dataset:
+            print(d)
             if len(sys.argv) == 5:
                 log[d] = profile(
                     d, int(sys.argv[2]), int(sys.argv[3]), repeat, sys.argv[4].strip()

@@ -69,10 +69,10 @@ def bench_with_bck_prop(
     nvtx=True,
 ):
     try:
-        optimizer = torch.optim.AdamW(net.parameters())
-        scheduler = torch.optim.lr_scheduler.OneCycleLR(
-            optimizer, total_steps=5 + repeat, max_lr=1e-3
-        )
+        optimizer = torch.optim.Adam(net.parameters(), lr=1e-3)
+        # scheduler = torch.optim.lr_scheduler.OneCycleLR(
+        #     optimizer, total_steps=5 + repeat, max_lr=1e-3
+        # )
         # warm up
         for i in range(5):
             optimizer.zero_grad()
@@ -89,7 +89,7 @@ def bench_with_bck_prop(
                 for k, v in grad_logits.items():
                     logits[k].backward(v)
             optimizer.step()
-            scheduler.step()
+            # scheduler.step()
         synchronize()
         memory_offset = memory_allocated()
         reset_peak_memory_stats()
@@ -116,6 +116,8 @@ def bench_with_bck_prop(
                 with cm1:
                     with cm2_0:
                         logits = net(*net_params)
+                    synchronize()
+                    fw_end_time = time.time()
                     with cm2_1:
                         if type(logits) is torch.Tensor:
                             logits.backward(grad_logits)
@@ -124,18 +126,22 @@ def bench_with_bck_prop(
                                 logits[k].backward(v)
                     with cm2_2:
                         optimizer.step()
-                        scheduler.step()
+                        # scheduler.step()
         synchronize()
+        end_time = time.time()
         if nvprof:
             profiler.stop()
-        elapsed_time = (time.time() - start_time) / repeat * 1000
+        elapsed_time = (end_time - start_time) / repeat * 1000
+        bw_elapsed_time = (end_time - fw_end_time) / repeat * 1000
         print("{} elapsed time: {} ms/training".format(tag, elapsed_time))
-        log.at[tag, "time"] = elapsed_time
+        print("{} elapsed time: {} ms/backward".format(tag, bw_elapsed_time))
+        log.at[tag, "train_time"] = elapsed_time
+        log.at[tag, "bw_time"] = bw_elapsed_time
 
         if memory:
             max_mem_consumption = (max_memory_allocated() - memory_offset) / 1048576
             print("intermediate data memory usage: {} MB".format(max_mem_consumption))
-            log.at[tag, "mem"] = max_mem_consumption
+            log.at[tag, "train_mem"] = max_mem_consumption
     except (RuntimeError, DGLError) as e:
         print("{} OOM".format(tag))
         print(e)

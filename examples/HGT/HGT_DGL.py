@@ -69,10 +69,14 @@ class HGTLayerHetero(nn.Module):
                 k_linear = self.k_linears[node_dict[srctype]]
                 v_linear = self.v_linears[node_dict[srctype]]
                 q_linear = self.q_linears[node_dict[dsttype]]
-
-                k = k_linear(h[srctype]).view(-1, self.n_heads, self.d_k)
-                v = v_linear(h[srctype]).view(-1, self.n_heads, self.d_k)
-                q = q_linear(h[dsttype]).view(-1, self.n_heads, self.d_k)
+                if len(node_dict) == 1:
+                    k = k_linear(h).view(-1, self.n_heads, self.d_k)
+                    v = v_linear(h).view(-1, self.n_heads, self.d_k)
+                    q = q_linear(h).view(-1, self.n_heads, self.d_k)
+                else:
+                    k = k_linear(h[srctype]).view(-1, self.n_heads, self.d_k)
+                    v = v_linear(h[srctype]).view(-1, self.n_heads, self.d_k)
+                    q = q_linear(h[dsttype]).view(-1, self.n_heads, self.d_k)
 
                 e_id = self.edge_dict[(srctype, etype, dsttype)]
 

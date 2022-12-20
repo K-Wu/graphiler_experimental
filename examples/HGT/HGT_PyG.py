@@ -44,28 +44,30 @@ class HGTLayerSlice(MessagePassing):
         self.num_node_types = num_node_types
         self.num_rels = num_rels
 
-        self.k_weights = torch.rand(
-            self.num_node_types, self.in_feat_dim, self.out_feat_dim
-        ).to(device)
-        self.q_weights = torch.rand(
-            self.num_node_types, self.in_feat_dim, self.out_feat_dim
-        ).to(device)
-        self.v_weights = torch.rand(
-            self.num_node_types, self.in_feat_dim, self.out_feat_dim
-        ).to(device)
-        self.a_weights = torch.rand(
-            self.num_node_types, self.out_feat_dim, self.out_feat_dim
-        ).to(device)
+        self.k_weights = torch.nn.Parameter(
+            torch.rand(self.num_node_types, self.in_feat_dim, self.out_feat_dim)
+        )  # .to(device)
+        self.q_weights = torch.nn.Parameter(
+            torch.rand(self.num_node_types, self.in_feat_dim, self.out_feat_dim)
+        )  # .to(device)
+        self.v_weights = torch.nn.Parameter(
+            torch.rand(self.num_node_types, self.in_feat_dim, self.out_feat_dim)
+        )  # .to(device)
+        self.a_weights = torch.nn.Parameter(
+            torch.rand(self.num_node_types, self.out_feat_dim, self.out_feat_dim)
+        )  # .to(device)
 
-        self.relation_pri = torch.ones(self.num_rels, 1).to(device)
-        self.relation_att = torch.rand(
-            self.num_rels, self.out_feat_dim, self.out_feat_dim
-        ).to(device)
-        self.relation_msg = torch.rand(
-            self.num_rels, self.out_feat_dim, self.out_feat_dim
-        ).to(device)
+        self.relation_pri = torch.nn.Parameter(
+            torch.ones(self.num_rels, 1)
+        )  # .to(device)
+        self.relation_att = torch.nn.Parameter(
+            torch.rand(self.num_rels, self.out_feat_dim, self.out_feat_dim)
+        )  # .to(device)
+        self.relation_msg = torch.nn.Parameter(
+            torch.rand(self.num_rels, self.out_feat_dim, self.out_feat_dim)
+        )  # .to(device)
 
-        self.skip = torch.ones(self.num_node_types).to(device)
+        self.skip = torch.nn.Parameter(torch.ones(self.num_node_types))  # .to(device)
 
     def upd(self, h, node_type):
         node_type = node_type.squeeze(-1)
@@ -114,28 +116,30 @@ class HGTLayer(MessagePassing):
         self.num_node_types = num_node_types
         self.num_rels = num_rels
 
-        self.k_weights = torch.rand(
-            self.num_node_types, self.in_feat_dim, self.out_feat_dim
-        ).to(device)
-        self.q_weights = torch.rand(
-            self.num_node_types, self.in_feat_dim, self.out_feat_dim
-        ).to(device)
-        self.v_weights = torch.rand(
-            self.num_node_types, self.in_feat_dim, self.out_feat_dim
-        ).to(device)
-        self.a_weights = torch.rand(
-            self.num_node_types, self.out_feat_dim, self.out_feat_dim
-        ).to(device)
+        self.k_weights = torch.nn.Parameter(
+            torch.rand(self.num_node_types, self.in_feat_dim, self.out_feat_dim)
+        )  # .to(device)
+        self.q_weights = torch.nn.Parameter(
+            torch.rand(self.num_node_types, self.in_feat_dim, self.out_feat_dim)
+        )  # .to(device)
+        self.v_weights = torch.nn.Parameter(
+            torch.rand(self.num_node_types, self.in_feat_dim, self.out_feat_dim)
+        )  # .to(device)
+        self.a_weights = torch.nn.Parameter(
+            torch.rand(self.num_node_types, self.out_feat_dim, self.out_feat_dim)
+        )  # .to(device)
 
-        self.relation_pri = torch.ones(self.num_rels, 1).to(device)
-        self.relation_att = torch.rand(
-            self.num_rels, self.out_feat_dim, self.out_feat_dim
-        ).to(device)
-        self.relation_msg = torch.rand(
-            self.num_rels, self.out_feat_dim, self.out_feat_dim
-        ).to(device)
+        self.relation_pri = torch.nn.Parameter(
+            torch.ones(self.num_rels, 1)
+        )  # .to(device)
+        self.relation_att = torch.nn.Parameter(
+            torch.rand(self.num_rels, self.out_feat_dim, self.out_feat_dim)
+        )  # .to(device)
+        self.relation_msg = torch.nn.Parameter(
+            torch.rand(self.num_rels, self.out_feat_dim, self.out_feat_dim)
+        )  # .to(device)
 
-        self.skip = torch.ones(self.num_node_types).to(device)
+        self.skip = torch.nn.Parameter(torch.ones(self.num_node_types))  # .to(device)
 
     def upd(self, h, node_type):
         node_type = node_type.squeeze(-1)

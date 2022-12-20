@@ -147,10 +147,14 @@ def profile(dataset, feat_dim, out_dim, repeat=1000, bench_item="abcd-+"):
             u, v = g.edges()
             adj = torch.stack([u, v]).to(device)
             src_type, dst_type = get_ntype(
-                adj, g.edata["_TYPE"], g.ndata["_TYPE"], g.num_rels
+                adj, g.edata["_TYPE"], g.ndata["_TYPE"], int(g.edata["_TYPE"].max()) + 1
             )
             net_pyg_slice = HGT_PyG(
-                feat_dim, out_dim, g.num_ntypes, g.num_rels, mode="slice"
+                feat_dim,
+                out_dim,
+                int(g.ndata["_TYPE"].max()) + 1,
+                int(g.edata["_TYPE"].max()) + 1,
+                mode="slice",
             ).to(device)
 
             switch_bench_cm_list = []
@@ -191,7 +195,11 @@ def profile(dataset, feat_dim, out_dim, repeat=1000, bench_item="abcd-+"):
                 adj, g.edata["_TYPE"], g.ndata["_TYPE"], int(g.edata["_TYPE"].max()) + 1
             )
             net_pyg_bmm = HGT_PyG(
-                feat_dim, out_dim, g.num_ntypes, g.num_rels, mode="bmm"
+                feat_dim,
+                out_dim,
+                int(g.ndata["_TYPE"].max()) + 1,
+                int(g.edata["_TYPE"].max()) + 1,
+                mode="bmm",
             ).to(device)
 
             switch_bench_cm_list = []
@@ -248,6 +256,7 @@ if __name__ == "__main__":
     if sys.argv[1] == "all":
         log = {}
         for d in hetero_dataset:
+            print(d)
             if len(sys.argv) == 5:
                 log[d] = profile(
                     d, int(sys.argv[2]), int(sys.argv[3]), repeat, sys.argv[4].strip()

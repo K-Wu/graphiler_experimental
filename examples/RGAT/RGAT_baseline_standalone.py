@@ -45,8 +45,8 @@ def profile(dataset, feat_dim, out_dim, repeat=1000, bench_item="ab-+"):
     # g, features = load_data(dataset, feat_dim, prepare=False)
     g_hetero = load_data_as_dgl_graph(dataset)
     g = dgl.to_homogeneous(g_hetero)
-    features = torch.rand(
-        [sum([g.number_of_nodes(ntype) for ntype in g.ntypes]), feat_dim]
+    features = torch.nn.Parameter(
+        torch.rand([sum([g.number_of_nodes(ntype) for ntype in g.ntypes]), feat_dim])
     )
     g_hetero, _ = prepare_hetero_graph_simplified(g_hetero, features)
 

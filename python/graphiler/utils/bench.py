@@ -77,17 +77,31 @@ def bench_with_bck_prop(
         for i in range(5):
             optimizer.zero_grad()
             logits = net(*net_params)
+            # if type(logits) is torch.Tensor:
+            #     grad_logits = torch.rand_like(logits, requires_grad=False)
+            #     logits.backward(grad_logits)
+            # else:
+            #     # grad_logits is a dict
+            #     grad_logits = {
+            #         k: torch.rand_like(v, requires_grad=False)
+            #         for k, v in logits.items()
+            #     }
+            #     for k, v in grad_logits.items():
+            #         logits[k].backward(v)
             if type(logits) is torch.Tensor:
-                grad_logits = torch.rand_like(logits, requires_grad=False)
-                logits.backward(grad_logits)
+                labels = torch.randint(0, logits.shape[-1], logits.shape[:-1]).cuda()
+                loss = torch.nn.functional.cross_entropy(logits, labels)
+                loss.backward()
             else:
-                # grad_logits is a dict
-                grad_logits = {
-                    k: torch.rand_like(v, requires_grad=False)
+                labels = {
+                    k: torch.randint(0, v.shape[-1], v.shape[:-1]).cuda()
                     for k, v in logits.items()
                 }
-                for k, v in grad_logits.items():
-                    logits[k].backward(v)
+                loss = dict()
+                for k, v in labels.items():
+                    loss[k] = torch.nn.functional.cross_entropy(logits[k], labels[k])
+                for k, v in labels.items():
+                    loss[k].backward(retain_graph=True)
             optimizer.step()
             # scheduler.step()
         synchronize()
@@ -118,12 +132,25 @@ def bench_with_bck_prop(
                         logits = net(*net_params)
                     synchronize()
                     fw_end_time = time.time()
+                    if type(logits) is torch.Tensor:
+                        loss = torch.nn.functional.cross_entropy(logits, labels)
+                    else:
+                        loss = dict()
+                        for k, v in labels.items():
+                            loss[k] = torch.nn.functional.cross_entropy(
+                                logits[k], labels[k]
+                            )
                     with cm2_1:
+                        # if type(logits) is torch.Tensor:
+                        #     logits.backward(grad_logits)
+                        # else:
+                        #     for k, v in grad_logits.items():
+                        #         logits[k].backward(v)
                         if type(logits) is torch.Tensor:
-                            logits.backward(grad_logits)
+                            loss.backward()
                         else:
-                            for k, v in grad_logits.items():
-                                logits[k].backward(v)
+                            for k, v in labels.items():
+                                loss[k].backward(retain_graph=True)
                     with cm2_2:
                         optimizer.step()
                         # scheduler.step()

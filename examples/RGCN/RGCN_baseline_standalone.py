@@ -86,6 +86,10 @@ def profile(dataset, feat_dim, out_dim, repeat=1000, bench_item="abcd-+"):
                 feat_dim, out_dim, rel_names, len(rel_names)
             ).to(device)
 
+            hetero_features = g_hetero.ndata["h"]
+            if len(g.ntypes) == 1:
+                hetero_features = {g.ntypes[0]: hetero_features}
+
             switch_bench_cm_list = []
             if "-" in bench_item:
                 switch_bench_cm_list.append((net_dgl_hetero.eval, bench, torch.no_grad))
@@ -98,7 +102,7 @@ def profile(dataset, feat_dim, out_dim, repeat=1000, bench_item="abcd-+"):
                 with cm():
                     bench_func(
                         net=net_dgl_hetero,
-                        net_params=(g_hetero, g_hetero.ndata["h"]),
+                        net_params=(g_hetero, hetero_features),
                         tag="1-DGL-slice",
                         nvprof=False,
                         repeat=repeat,

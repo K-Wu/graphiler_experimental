@@ -49,7 +49,7 @@ def profile(dataset, feat_dim, out_dim, repeat=1000, bench_item="ab-+"):
         torch.rand([sum([g.number_of_nodes(ntype) for ntype in g.ntypes]), feat_dim])
     )
     g_hetero, _ = prepare_hetero_graph_simplified(g_hetero, features)
-
+    g_hetero = g_hetero.to(device)
     features = features.to(device)
 
     @empty_cache
@@ -103,6 +103,9 @@ def profile(dataset, feat_dim, out_dim, repeat=1000, bench_item="ab-+"):
                 num_hidden_layers=0,  # , num_rels = g.num_rels
             ).to(device)
             # print(g.ndata["h"])
+            hetero_features = g_hetero.ndata["h"]
+            if len(g.ntypes) == 1:
+                hetero_features = {g.ntypes[0]: hetero_features}
 
             switch_bench_cm_list = []
             if "-" in bench_item:
@@ -116,7 +119,7 @@ def profile(dataset, feat_dim, out_dim, repeat=1000, bench_item="ab-+"):
                 with cm():
                     bench_func(
                         net=net_dgl,
-                        net_params=(g, g.ndata["h"]),
+                        net_params=(g, hetero_features),
                         tag="1-DGL-primitives",
                         nvprof=False,
                         repeat=repeat,

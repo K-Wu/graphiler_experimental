@@ -76,11 +76,11 @@ def load_data_as_dgl_graph(name):
         hetero_dict = {}
         for i in range(num_etypes):
             type_index = (reltype == i).nonzero()
-            hetero_dict[("n", str(i), "n")] = (
+            hetero_dict[("_N", str(i), "_N")] = (
                 torch.flatten(src[type_index]),
                 torch.flatten(dst[type_index]),
             )
-        g = dgl.heterograph(hetero_dict)
+        g = dgl.heterograph(hetero_dict)  # ,  num_nodes_dict = {'_N': g.num_nodes()})
     elif name == "fb15k":
         from dgl.data import FB15k237Dataset
 
@@ -92,7 +92,7 @@ def load_data_as_dgl_graph(name):
         hetero_dict = {}
         for i in range(num_etypes):
             type_index = (reltype == i).nonzero()
-            hetero_dict[("n", str(i), "n")] = (
+            hetero_dict[("_N", str(i), "_N")] = (
                 torch.flatten(src[type_index]),
                 torch.flatten(dst[type_index]),
             )

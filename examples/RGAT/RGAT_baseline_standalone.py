@@ -148,7 +148,7 @@ if __name__ == "__main__":
                 )
             else:
                 log[d] = profile(d, int(sys.argv[2]), int(sys.argv[3]), repeat)
-        pd.DataFrame(log).to_pickle("output/RGAT.pkl")
+        pd.DataFrame(log).to_pickle("RGAT_baseline_standalone.pkl")
     elif sys.argv[1] == "breakdown":
         raise NotImplementedError("implemented only for graphiler-related routines")
     else:

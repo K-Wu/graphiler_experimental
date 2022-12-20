@@ -229,7 +229,7 @@ if __name__ == "__main__":
                 )
             else:
                 log[d] = profile(d, int(sys.argv[2]), int(sys.argv[3]), repeat)
-        pd.DataFrame(log).to_pickle("output/RGCN.pkl")
+        pd.DataFrame(log).to_pickle("RGCN_baseline_standalone.pkl")
     else:
         if len(sys.argv) == 5:
             log = profile(

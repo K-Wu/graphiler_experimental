@@ -461,11 +461,11 @@ if __name__ == "__main__":
         log = {}
         for d in hetero_dataset:
             log[d] = profile(d, int(sys.argv[2]), int(sys.argv[3]), repeat)
-        pd.DataFrame(log).to_pickle("output/HGT.pkl")
+        pd.DataFrame(log).to_pickle("HGT.pkl")
     elif sys.argv[1] == "breakdown":
         log = {}
         for d in hetero_dataset:
             log[d] = breakdown(d, int(sys.argv[2]), int(sys.argv[3]), repeat)
-        pd.DataFrame(log).to_pickle("output/HGT_breakdown.pkl")
+        pd.DataFrame(log).to_pickle("HGT_breakdown.pkl")
     else:
         profile(sys.argv[1], int(sys.argv[2]), int(sys.argv[3]), repeat)

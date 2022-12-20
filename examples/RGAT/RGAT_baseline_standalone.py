@@ -129,9 +129,9 @@ def profile(dataset, feat_dim, out_dim, repeat=1000, bench_item="ab-+"):
             del g, net_dgl
 
     if "a" in bench_item:
-        run_dgl_hetero(g_hetero, features)
+        run_dgl_hetero(g_hetero, features)  # "1-DGL-primitives"
     if "b" in bench_item:
-        run_pyg_slice(g, features)
+        run_pyg_slice(g, features)  # "2-PyG-primitives"
 
 
 if __name__ == "__main__":

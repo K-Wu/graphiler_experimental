@@ -204,13 +204,13 @@ def profile(dataset, feat_dim, out_dim, repeat=1000, bench_item="abcd-+"):
             del edge_type, u, v, adj, net_pyg_slice
 
     if "a" in bench_item:
-        run_dgl_bmm(g, features)
+        run_dgl_hetero(g_hetero, features)  # "1-DGL-slice"
     if "b" in bench_item:
-        run_dgl_hetero(g_hetero, features)
+        run_pyg_slice(g, features)  # "2-PyG-slice"
     if "c" in bench_item:
-        run_pyg_bmm(g, features)
+        run_dgl_bmm(g, features)  # "3-DGL-bmm (segmentmm in latest dgl)"
     if "d" in bench_item:
-        run_pyg_slice(g, features)
+        run_pyg_bmm(g, features)  # "4-PyG-bmm"
 
     return log
 

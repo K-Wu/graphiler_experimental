@@ -52,6 +52,7 @@ RGCN_FEAT_DIM = 16
 
 
 def profile(dataset, feat_dim, out_dim, repeat=1000, bench_item="abcd-+"):
+    nvtx_enable_flag = "*" in bench_item
     log = init_log(
         [
             "0-DGL-UDF",
@@ -108,6 +109,7 @@ def profile(dataset, feat_dim, out_dim, repeat=1000, bench_item="abcd-+"):
                         repeat=repeat,
                         memory=True,
                         log=log,
+                        nvtx_flag=nvtx_enable_flag,
                     )
             del g_hetero, rel_names, net_dgl_hetero
 
@@ -139,6 +141,7 @@ def profile(dataset, feat_dim, out_dim, repeat=1000, bench_item="abcd-+"):
                         repeat=repeat,
                         memory=True,
                         log=log,
+                        nvtx_flag=nvtx_enable_flag,
                     )
             del edge_type, u, v, adj, net_pyg_bmm
 
@@ -168,6 +171,7 @@ def profile(dataset, feat_dim, out_dim, repeat=1000, bench_item="abcd-+"):
                         repeat=repeat,
                         memory=True,
                         log=log,
+                        nvtx_flag=nvtx_enable_flag,
                     )
             del g, norm, net_dgl
 
@@ -200,6 +204,7 @@ def profile(dataset, feat_dim, out_dim, repeat=1000, bench_item="abcd-+"):
                         repeat=repeat,
                         memory=True,
                         log=log,
+                        nvtx_flag=nvtx_enable_flag,
                     )
             del edge_type, u, v, adj, net_pyg_slice
 
@@ -220,7 +225,7 @@ if __name__ == "__main__":
     repeat = 1
     if len(sys.argv) != 4 and len(sys.argv) != 5:
         print(
-            "usage: python GCN.py [dataset] [feat_dim] [out_dim] [bench idx abcd-+ (optional)]"
+            "usage: python GCN.py [dataset] [feat_dim] [out_dim] [bench idx abcd-+* (optional)]"
         )
         exit()
     if sys.argv[1] == "all":

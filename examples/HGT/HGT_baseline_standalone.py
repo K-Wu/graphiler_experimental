@@ -40,6 +40,7 @@ device = setup()
 
 
 def profile(dataset, feat_dim, out_dim, repeat=1000, bench_item="abcd-+"):
+    nvtx_enable_flag = "*" in bench_item
     # '-' means enabling profiling inference
     # '+' means enabling profiling training
 
@@ -96,6 +97,7 @@ def profile(dataset, feat_dim, out_dim, repeat=1000, bench_item="abcd-+"):
                         repeat=repeat,
                         memory=True,
                         log=log,
+                        nvtx_flag=nvtx_enable_flag,
                     )
             del g_hetero, node_dict, edge_dict, net_hetero
 
@@ -136,6 +138,7 @@ def profile(dataset, feat_dim, out_dim, repeat=1000, bench_item="abcd-+"):
                         repeat=repeat,
                         memory=True,
                         log=log,
+                        nvtx_flag=nvtx_enable_flag,
                     )
 
             del g, net_dgl  # , norm
@@ -182,6 +185,7 @@ def profile(dataset, feat_dim, out_dim, repeat=1000, bench_item="abcd-+"):
                         repeat=repeat,
                         memory=True,
                         log=log,
+                        nvtx_flag=nvtx_enable_flag,
                     )
 
             del u, v, adj, src_type, dst_type, net_pyg_slice
@@ -227,6 +231,7 @@ def profile(dataset, feat_dim, out_dim, repeat=1000, bench_item="abcd-+"):
                         repeat=repeat,
                         memory=True,
                         log=log,
+                        nvtx_flag=nvtx_enable_flag,
                     )
             del u, v, adj, src_type, dst_type, net_pyg_bmm
 
@@ -250,7 +255,7 @@ if __name__ == "__main__":
     repeat = 1
     if len(sys.argv) != 4 and len(sys.argv) != 5:
         print(
-            "usage: python HGT.py [dataset] [feat_dim] [out_dim] [bench_item abcd-+ (optional)]"
+            "usage: python HGT.py [dataset] [feat_dim] [out_dim] [bench_item abcd-+* (optional)]"
         )
         exit()
     if sys.argv[1] == "all":

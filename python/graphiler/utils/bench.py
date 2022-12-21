@@ -25,7 +25,16 @@ def check_equal(first, second):
         print("correctness check passed!")
 
 
-def bench(net, net_params, tag="", nvprof=False, memory=False, repeat=1000, log=None):
+def bench(
+    net,
+    net_params,
+    tag="",
+    nvprof=False,
+    memory=False,
+    repeat=1000,
+    log=None,
+    nvtx_flag=False,
+):
     try:
         # warm up
         for i in range(5):
@@ -33,6 +42,18 @@ def bench(net, net_params, tag="", nvprof=False, memory=False, repeat=1000, log=
         synchronize()
         memory_offset = memory_allocated()
         reset_peak_memory_stats()
+        if nvtx_flag:
+            import nvtx
+
+            cm0 = torch.cuda.profiler.profile()
+            cm1 = torch.autograd.profiler.emit_nvtx()
+            cm2_0 = nvtx.annotate("forward", color="purple")
+            with cm0:
+                with cm1:
+                    with cm2_0:
+                        logits = net(*net_params)
+            synchronize()
+
         if nvprof:
             profiler.start()
         start_time = time.time()
@@ -66,7 +87,7 @@ def bench_with_bck_prop(
     memory=False,
     repeat=1000,
     log=None,
-    nvtx=True,
+    nvtx_flag=True,
 ):
     try:
         optimizer = torch.optim.Adam(net.parameters(), lr=1e-3)
@@ -107,31 +128,21 @@ def bench_with_bck_prop(
         synchronize()
         memory_offset = memory_allocated()
         reset_peak_memory_stats()
-        if nvprof:
-            profiler.start()
-        start_time = time.time()
-        for i in range(repeat):
-            optimizer.zero_grad()
-            if nvtx and i == 0:
-                import nvtx
+        if nvtx_flag:
+            import nvtx
 
-                cm0 = torch.cuda.profiler.profile()
-                cm1 = torch.autograd.profiler.emit_nvtx()
-                cm2_0 = nvtx.annotate("forward", color="purple")
-                cm2_1 = nvtx.annotate("backward", color="green")
-                cm2_2 = nvtx.annotate("optimizer_step", color="green")
-            else:
-                cm0 = contextlib.nullcontext()
-                cm1 = contextlib.nullcontext()
-                cm2_0 = contextlib.nullcontext()
-                cm2_1 = contextlib.nullcontext()
-                cm2_2 = contextlib.nullcontext()
+            cm0 = torch.cuda.profiler.profile()
+            cm1 = torch.autograd.profiler.emit_nvtx()
+            cm2_0 = nvtx.annotate("forward", color="purple")
+            cm2_1 = nvtx.annotate("backward", color="green")
+            cm2_2 = nvtx.annotate("optimizer_step", color="green")
+            optimizer.zero_grad()
             with cm0:
                 with cm1:
                     with cm2_0:
                         logits = net(*net_params)
-                    synchronize()
-                    fw_end_time = time.time()
+                    # synchronize()
+                    # fw_end_time = time.time()
                     if type(logits) is torch.Tensor:
                         loss = torch.nn.functional.cross_entropy(logits, labels)
                     else:
@@ -154,16 +165,46 @@ def bench_with_bck_prop(
                     with cm2_2:
                         optimizer.step()
                         # scheduler.step()
+            synchronize()
+
+        if nvprof:
+            profiler.start()
+        start_time = time.time()
+        for i in range(repeat):
+            optimizer.zero_grad()
+
+            logits = net(*net_params)
+            # synchronize()
+            # fw_end_time = time.time()
+            if type(logits) is torch.Tensor:
+                loss = torch.nn.functional.cross_entropy(logits, labels)
+            else:
+                loss = dict()
+                for k, v in labels.items():
+                    loss[k] = torch.nn.functional.cross_entropy(logits[k], labels[k])
+
+                # if type(logits) is torch.Tensor:
+                #     logits.backward(grad_logits)
+                # else:
+                #     for k, v in grad_logits.items():
+                #         logits[k].backward(v)
+                if type(logits) is torch.Tensor:
+                    loss.backward()
+                else:
+                    for k, v in labels.items():
+                        loss[k].backward(retain_graph=True)
+            optimizer.step()
+            # scheduler.step()
         synchronize()
         end_time = time.time()
         if nvprof:
             profiler.stop()
         elapsed_time = (end_time - start_time) / repeat * 1000
-        bw_elapsed_time = (end_time - fw_end_time) / repeat * 1000
+        # bw_elapsed_time = (end_time - fw_end_time) / repeat * 1000
         print("{} elapsed time: {} ms/training".format(tag, elapsed_time))
-        print("{} elapsed time: {} ms/backward".format(tag, bw_elapsed_time))
+        # print("{} elapsed time: {} ms/backward".format(tag, bw_elapsed_time))
         log.at[tag, "train_time"] = elapsed_time
-        log.at[tag, "bw_time"] = bw_elapsed_time
+        # log.at[tag, "bw_time"] = bw_elapsed_time
 
         if memory:
             max_mem_consumption = (max_memory_allocated() - memory_offset) / 1048576

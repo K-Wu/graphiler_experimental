@@ -37,6 +37,7 @@ device = setup()
 
 
 def profile(dataset, feat_dim, out_dim, repeat=1000, bench_item="ab-+"):
+    nvtx_enable_flag = "*" in bench_item
     log = init_log(
         ["0-DGL-UDF", "1-DGL-primitives", "2-PyG-primitives", "3-Graphiler"],
         ["time", "mem"],
@@ -88,6 +89,7 @@ def profile(dataset, feat_dim, out_dim, repeat=1000, bench_item="ab-+"):
                         repeat=repeat,
                         memory=True,
                         log=log,
+                        nvtx_flag=nvtx_enable_flag,
                     )
             del edge_type, u, v, adj, net_pyg
 
@@ -125,6 +127,7 @@ def profile(dataset, feat_dim, out_dim, repeat=1000, bench_item="ab-+"):
                         repeat=repeat,
                         memory=True,
                         log=log,
+                        nvtx_flag=nvtx_enable_flag,
                     )
             del g, net_dgl
 
@@ -138,7 +141,7 @@ if __name__ == "__main__":
     repeat = int(os.environ.get("REPEAT", 50))
     if len(sys.argv) != 4 and len(sys.argv) != 5:
         print(
-            "usage: python RGATSingleLayer.py [dataset] [feat_dim] [out_dim] [bench_item ab-+ (optional)]]"
+            "usage: python RGATSingleLayer.py [dataset] [feat_dim] [out_dim] [bench_item ab-+* (optional)]]"
         )
         exit()
     if sys.argv[1] == "all":

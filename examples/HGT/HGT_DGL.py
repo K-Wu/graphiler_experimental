@@ -115,6 +115,8 @@ class HGTLayerHetero(nn.Module):
                 """
                 n_id = node_dict[ntype]
                 alpha = torch.sigmoid(self.skip[n_id])
+                if "t" not in G.nodes[ntype].data:
+                    continue
                 t = G.nodes[ntype].data["t"].view(-1, self.out_dim)
                 trans_out = self.drop(self.a_linears[n_id](t))
                 trans_out = trans_out * alpha  # + h[ntype] * (1-alpha) ?

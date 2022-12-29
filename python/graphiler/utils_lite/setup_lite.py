@@ -4,7 +4,7 @@ import numpy as np
 
 homo_dataset = {"cora": 1433, "pubmed": 500, "ppi": 50, "arxiv": 128, "reddit": 602}
 
-hetero_dataset = ["aifb", "mutag", "bgs", "biokg", "am", "wikikg2", "mag", "fb15k"]
+hetero_dataset = ["aifb", "mutag", "bgs", "am", "mag", "wikikg2", "fb15k", "biokg"]
 
 
 def setup(device="cuda:0"):

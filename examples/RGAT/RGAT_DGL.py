@@ -181,8 +181,8 @@ class DGL_RGAT_Hetero(nn.Module):
         n_heads,
         num_hidden_layers=1,
         dropout=0,
-        use_self_loop=True,
-        last_layer_act=True,
+        use_self_loop=False,
+        last_layer_act=False,
     ):
         super(DGL_RGAT_Hetero, self).__init__()
         self.n_heads = n_heads

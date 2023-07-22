@@ -16,7 +16,7 @@ from graphiler.utils import (
     hetero_dataset,
     init_log,
     empty_cache,
-    bench_with_bck_prop,
+    # bench_with_bck_prop,
 )
 import contextlib
 
@@ -185,6 +185,7 @@ class HGT(nn.Module):
         self.out_dim = out_dim
         self.num_ntypes = num_ntypes
         self.num_rels = num_rels
+        # print("num_rels", num_rels)
 
         self.layer0 = HGTLayer_simplified(
             self.in_dim, self.out_dim, self.num_ntypes, self.num_rels
@@ -236,28 +237,28 @@ def profile(dataset, feat_dim, out_dim, repeat=1000):
                     log=log,
                 )
                 # nvtx.end_range(range_id)
-            with nvtx.annotate("DGL-bmm", color="green"):
-                res = bench(
-                    net=net,
-                    net_params=(g, features, "batch"),
-                    tag="3-DGL-bmm",
-                    nvprof=False,
-                    repeat=repeat,
-                    memory=True,
-                    log=log,
-                )
-            check_equal(compile_res, res)
-            with nvtx.annotate("baseline", color="yellow"):
-                bench(
-                    net=net,
-                    net_params=(g, features, "naive"),
-                    tag="0-DGL-UDF",
-                    nvprof=False,
-                    repeat=repeat,
-                    memory=True,
-                    log=log,
-                )
-        del g, net, compile_res, res
+            # with nvtx.annotate("DGL-bmm", color="green"):
+            #     res = bench(
+            #         net=net,
+            #         net_params=(g, features, "batch"),
+            #         tag="3-DGL-bmm",
+            #         nvprof=False,
+            #         repeat=repeat,
+            #         memory=True,
+            #         log=log,
+            #     )
+            # check_equal(compile_res, res)
+            # with nvtx.annotate("baseline", color="yellow"):
+            #     bench(
+            #         net=net,
+            #         net_params=(g, features, "naive"),
+            #         tag="0-DGL-UDF",
+            #         nvprof=False,
+            #         repeat=repeat,
+            #         memory=True,
+            #         log=log,
+            #     )
+        del g, net, compile_res  # , res
 
     @empty_cache
     def run_dgl_slice(g_hetero, features):

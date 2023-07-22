@@ -191,6 +191,48 @@ def profile(dataset, feat_dim, out_dim, repeat=1000, bench_item="abcd-+"):
             del u, v, adj, src_type, dst_type, net_pyg_slice
 
     @empty_cache
+    def run_dgl_bmm(g, features):
+        g, _ = load_data(dataset, feat_dim, prepare=True)
+        g = g.to(device)
+        net = HGT(feat_dim, out_dim, g.num_ntypes, g.num_rels).to(
+            device
+        )  # DEFAULT_DIM, len(g._ntypes), len(g._etypes)).to(device)
+        net.eval()
+        with torch.no_grad():
+            # with nvtx.annotate("DGL-bmm", color="green"):
+            bench(
+                net=net,
+                net_params=(g, features, "batch"),
+                tag="3-DGL-bmm",
+                nvprof=False,
+                repeat=repeat,
+                memory=True,
+                log=log,
+            )
+        del g, net  # , compile_res#, res
+
+    @empty_cache
+    def run_dgl_udf(g, features):
+        g, _ = load_data(dataset, feat_dim, prepare=True)
+        g = g.to(device)
+        net = HGT(feat_dim, out_dim, g.num_ntypes, g.num_rels).to(
+            device
+        )  # DEFAULT_DIM, len(g._ntypes), len(g._etypes)).to(device)
+        net.eval()
+        with torch.no_grad():
+            # with nvtx.annotate("baseline", color="yellow"):
+            bench(
+                net=net,
+                net_params=(g, features, "naive"),
+                tag="0-DGL-UDF",
+                nvprof=False,
+                repeat=repeat,
+                memory=True,
+                log=log,
+            )
+        del g, net  # , compile_res#, res
+
+    @empty_cache
     def run_pyg_bmm(g, features):
         with nvtx.annotate("pyg-bmm", color="red"):
             u, v = g.edges()

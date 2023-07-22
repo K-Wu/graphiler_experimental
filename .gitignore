@@ -1,6 +1,11 @@
 *.pkl
 *.pdf
 
+#Nsight temporary files
+*.sqlite
+*.info.json
+*.txt
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

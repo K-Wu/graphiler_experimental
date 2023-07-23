@@ -8,6 +8,22 @@
 
 #include "cuda_common.h"
 
+#define CHECK_NE(a, b)                                                         \
+  do {                                                                         \
+    if ((a) == (b)) {                                                          \
+      printf("CHECK_NE failed: %s == %s\n", #a, #b);                            \
+      exit(1);                                                                 \
+    }                                                                          \
+  } while (0)
+
+#define CHECK_GE(a, b)                                                         \
+  do {                                                                         \
+    if ((a) < (b)) {                                                           \
+      printf("CHECK_GE failed: %s < %s\n", #a, #b);                             \
+      exit(1);                                                                 \
+    }                                                                          \
+  } while (0)
+
 namespace dgl {
 namespace cuda {
 

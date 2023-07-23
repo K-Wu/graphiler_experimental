@@ -5,7 +5,10 @@
  */
 #include "./functor.cuh"
 #include "./sddmm.cuh"
-#include "THC/THC.h"
+// #include "THC/THC.h"
+
+#include <ATen/cuda/CUDAContext.h>
+// #include <ATen/cuda/CUDAEvent.h>
 
 namespace dgl {
 namespace aten {
@@ -128,7 +131,12 @@ SDDMMCoo_u_add_v_mul_alpha(torch::Tensor src_feature, torch::Tensor dst_feature,
   return out;
 }
 
-static auto registry = torch::RegisterOperators(
-    "my_ops::gsddmm_u_add_v_mul_alpha(Tensor x, Tensor y, int alpha,"
-    "__torch__.torch.classes.my_classes.DGLGraph g) -> Tensor z",
-    &SDDMMCoo_u_add_v_mul_alpha);
+// static auto registry = torch::RegisterOperators(
+//     "my_ops::gsddmm_u_add_v_mul_alpha(Tensor x, Tensor y, int alpha,"
+//     "__torch__.torch.classes.my_classes.DGLGraph g) -> Tensor z",
+//     &SDDMMCoo_u_add_v_mul_alpha);
+
+
+TORCH_LIBRARY_FRAGMENT(my_ops, m) {
+  m.def("gsddmm_u_add_v_mul_alpha", SDDMMCoo_u_add_v_mul_alpha);
+}

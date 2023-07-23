@@ -2,6 +2,12 @@
 
 #include <torch/script.h>
 
+
+#include <c10/cuda/CUDAException.h>
+#include <c10/cuda/CUDAStream.h>
+#include <torch/extension.h>
+#include <torch/library.h>
+
 #include <cuda.h>
 #include <cuda_profiler_api.h>
 #include <cuda_runtime.h>

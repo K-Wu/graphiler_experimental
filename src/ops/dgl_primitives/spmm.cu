@@ -7,7 +7,10 @@
 #include "functor.cuh"
 #include "spmm.cuh"
 #include <ATen/cuda/CUDAContext.h>
-#include <THC/THC.h>
+// #include <THC/THC.h>
+
+#include <ATen/cuda/CUDAContext.h>
+// #include <ATen/cuda/CUDAEvent.h>
 #include <cusparse_v2.h>
 #include <torch/torch.h>
 
@@ -388,19 +391,27 @@ torch::Tensor SpMMSrc(torch::Tensor features, std::vector<int64_t> dims,
   return out;
 }
 
-static auto registry =
-    torch::RegisterOperators(
-        "my_ops::SpMMEdge(Tensor x, int[] dim, bool k, int? t, "
-        "__torch__.torch.classes.my_classes.DGLGraph g) -> Tensor y",
-        &SpMMEdge)
-        .op("my_ops::SpMMSrc(Tensor x, int[] dim, bool k, int? t, "
-            "__torch__.torch.classes.my_classes.DGLGraph g) -> Tensor y",
-            &SpMMSrc)
-        .op("my_ops::gspmm_src_mul_e_sum(Tensor x, Tensor y, int[] dim, bool "
-            "k, int? t, "
-            "__torch__.torch.classes.my_classes.DGLGraph g) -> Tensor z",
-            &src_mul_e_sum)
-        .op("my_ops::gspmm_dst_mul_e_sum(Tensor x, Tensor y, int[] dim, bool "
-            "k, int? t, "
-            "__torch__.torch.classes.my_classes.DGLGraph g) -> Tensor z",
-            &dst_mul_e_sum);
+// static auto registry =
+//     torch::RegisterOperators(
+//         "my_ops::SpMMEdge(Tensor x, int[] dim, bool k, int? t, "
+//         "__torch__.torch.classes.my_classes.DGLGraph g) -> Tensor y",
+//         &SpMMEdge)
+//         .op("my_ops::SpMMSrc(Tensor x, int[] dim, bool k, int? t, "
+//             "__torch__.torch.classes.my_classes.DGLGraph g) -> Tensor y",
+//             &SpMMSrc)
+//         .op("my_ops::gspmm_src_mul_e_sum(Tensor x, Tensor y, int[] dim, bool "
+//             "k, int? t, "
+//             "__torch__.torch.classes.my_classes.DGLGraph g) -> Tensor z",
+//             &src_mul_e_sum)
+//         .op("my_ops::gspmm_dst_mul_e_sum(Tensor x, Tensor y, int[] dim, bool "
+//             "k, int? t, "
+//             "__torch__.torch.classes.my_classes.DGLGraph g) -> Tensor z",
+//             &dst_mul_e_sum);
+
+
+TORCH_LIBRARY_FRAGMENT(my_ops, m) {
+  m.def("SpMMEdge", SpMMEdge);
+  m.def("SpMMSrc", SpMMSrc);
+  m.def("gspmm_src_mul_e_sum", src_mul_e_sum);
+  m.def("gspmm_dst_mul_e_sum", dst_mul_e_sum);
+}

@@ -32,11 +32,17 @@ torch::Tensor SegmentMMEdge(torch::Tensor features, torch::Tensor weights,
                        graph->num_etypes);
 }
 
-static auto registry =
-    torch::RegisterOperators(
-        "my_ops::SegmentMMNode(Tensor x, Tensor y, "
-        "__torch__.torch.classes.my_classes.DGLGraph g) -> Tensor z",
-        &SegmentMMNode)
-        .op("my_ops::SegmentMMEdge(Tensor x, Tensor y, "
-            "__torch__.torch.classes.my_classes.DGLGraph g) -> Tensor z",
-            &SegmentMMEdge);
+// static auto registry =
+//     torch::RegisterOperators(
+//         "my_ops::SegmentMMNode(Tensor x, Tensor y, "
+//         "__torch__.torch.classes.my_classes.DGLGraph g) -> Tensor z",
+//         &SegmentMMNode)
+//         .op("my_ops::SegmentMMEdge(Tensor x, Tensor y, "
+//             "__torch__.torch.classes.my_classes.DGLGraph g) -> Tensor z",
+//             &SegmentMMEdge);
+
+
+TORCH_LIBRARY_FRAGMENT(my_ops, m) {
+  m.def("SegmentMMNode", SegmentMMNode);
+  m.def("SegmentMMEdge", SegmentMMEdge);
+}

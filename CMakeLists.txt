@@ -3,6 +3,8 @@ project(graphiler LANGUAGES CUDA CXX)
 
 find_package(Torch REQUIRED)
 # find_package(PythonInterp REQUIRED)
+find_package(PythonLibs REQUIRED)
+include_directories(${PYTHON_INCLUDE_DIRS})
 
 include_directories("include")
 include_directories("src/ops")
@@ -29,4 +31,4 @@ set_target_properties(graphiler PROPERTIES CUDA_ARCHITECTURES "70")
 target_compile_features(graphiler PRIVATE cxx_std_14)
 
 # Link against LibTorch
-target_link_libraries(graphiler ${TORCH_LIBRARIES} ${CUDA_cusparse_LIBRARY})
+target_link_libraries(graphiler ${TORCH_LIBRARIES} ${CUDA_cusparse_LIBRARY} ${PYTHON_LIBRARIES})

@@ -91,7 +91,7 @@ def load_data_as_dgl_graph(name):
         num_etypes = torch.max(reltype).item() + 1
         hetero_dict = {}
         for i in range(num_etypes):
-            type_index = (reltype == i).nonzero()
+            type_index = (reltype == i).nonzero().cpu()
             hetero_dict[("_N", str(i), "_N")] = (
                 torch.flatten(src[type_index]),
                 torch.flatten(dst[type_index]),

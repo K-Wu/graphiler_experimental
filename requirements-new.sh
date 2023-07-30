@@ -3,6 +3,7 @@ conda install pytorch torchvision torchaudio pytorch-cuda=11.8 -c pytorch -c nvi
 pip install ogb nvtx rdflib pandas
 conda install -c conda-forge torch-scatter 
 pip install torch_geometric
+pip install chardet
 # setting up LD_LIBRARY_PATH to let pytorch find cuda 11.8 libraries
 conda env config vars set LD_LIBRARY_PATH=$CONDA_PREFIX/lib:$LD_LIBRARY_PATH
 #conda install torch-scatter torch-sparse torch-cluster torch-spline-conv -c pyg -c nvidia

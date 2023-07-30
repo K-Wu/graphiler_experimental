@@ -193,11 +193,11 @@ def bench_with_bck_prop(
                 # else:
                 #     for k, v in grad_logits.items():
                 #         logits[k].backward(v)
-                if type(logits) is torch.Tensor:
-                    loss.backward()
-                else:
-                    for k, v in labels.items():
-                        loss[k].backward(retain_graph=True)
+            if type(logits) is torch.Tensor:
+                loss.backward()
+            else:
+                for k, v in labels.items():
+                    loss[k].backward(retain_graph=True)
             optimizer.step()
             # scheduler.step()
         synchronize()

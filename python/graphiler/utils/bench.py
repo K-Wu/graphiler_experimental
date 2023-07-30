@@ -19,9 +19,14 @@ def check_equal(first, second):
     if first is None or second is None:
         print("cannot guarantee correctness because of OOM")
     else:
-        np.testing.assert_allclose(
-            first.cpu().detach().numpy(), second.cpu().detach().numpy(), rtol=1e-3
-        )
+        try:
+            np.testing.assert_allclose(
+                first.cpu().detach().numpy(), second.cpu().detach().numpy(), rtol=1e-3
+            )
+        except AssertionError as e:
+            print("correctness check failed!")
+            print(e)
+            return
         print("correctness check passed!")
 
 

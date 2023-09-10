@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# copied from hetero_edgesoftmax/hetero_edgesoftmax/python/RGAT/models_dgl.py
+# copied from HET/hrt/python/RGAT/models_dgl.py
 # external code. @xiangsx knows the source.
 """RGAT layer implementation"""
 
@@ -12,7 +12,7 @@ import torch.nn.functional as F
 import dgl.nn as dglnn
 from dgl.heterograph import DGLBlock
 
-# from hetero_edgesoftmax.python.utils.mydgl_graph import MyDGLGraph
+# from hrt.python.utils.mydgl_graph import MyDGLGraph
 # from ogb.nodeproppred import DglNodePropPredDataset
 # from .models import HET_RelationalGATEncoder  # , HET_RelationalAttLayer
 
@@ -135,13 +135,14 @@ class RelationalAttLayer(nn.Module):
             if g.number_of_dst_nodes(k) > 0:
                 if k not in hs:
                     print(
-                        "Warning. Graph convolution returned empty dictionary, "
-                        f"for node with type: {str(k)}"
+                        "Warning. Graph convolution returned empty"
+                        f" dictionary, for node with type: {str(k)}"
                     )
                     for _, in_v in inputs_src.items():
                         device = in_v.device
                     hs[k] = th.zeros(
-                        (g.number_of_dst_nodes(k), self.out_feat), device=device
+                        (g.number_of_dst_nodes(k), self.out_feat),
+                        device=device,
                     )
                     # TODO the above might fail if the device is a different GPU
                 else:

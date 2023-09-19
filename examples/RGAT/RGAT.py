@@ -95,12 +95,14 @@ class RGATLayer(nn.Module):
         g.etype_data["fc_weight"] = self.fc_weight
         g.etype_data["attn_weight"] = self.attn_weight
         if compile:
+            range_id = nvtx.start_range("my_code_range")
             if BREAK_FLAG == 0:
                 update_all(g, mpdfg_compile, msg_params=())
             elif BREAK_FLAG == 1:
                 update_all(g, mpdfg_plus_reorder, msg_params=())
             else:
                 update_all(g, mpdfg, msg_params=())
+            nvtx.end_range(range_id)
         else:
             g.update_all(self.message_func, self.reduce_func)
         return g.ndata.pop("h")
@@ -179,7 +181,9 @@ def profile(dataset, feat_dim, out_dim, repeat=1000):
             edge_type = g.edata["_TYPE"]
             u, v = g.edges()
             adj = SparseTensor(
-                row=u, col=v, sparse_sizes=(g.num_src_nodes(), g.num_dst_nodes())
+                row=u,
+                col=v,
+                sparse_sizes=(g.num_src_nodes(), g.num_dst_nodes()),
             ).to(device)
             net_pyg = RGAT_PyG(
                 in_dim=feat_dim, out_dim=out_dim, num_rels=g.num_rels
@@ -223,7 +227,8 @@ def profile(dataset, feat_dim, out_dim, repeat=1000):
 
     run_baseline_graphiler(g, features)
     print(
-        "Warning: baselines are disabled in this script to make sure we are using the latest version of dgl and pyg"
+        "Warning: baselines are disabled in this script to make sure we are"
+        " using the latest version of dgl and pyg"
     )
     if False:
         run_dgl_hetero(g_hetero, features)

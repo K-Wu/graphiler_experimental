@@ -139,7 +139,6 @@ def profile(dataset, feat_dim, out_dim, repeat=1000):
     )
     print("benchmarking on: " + dataset)
     g, features = load_data(dataset, feat_dim, prepare=False)
-    g_hetero, _ = load_data(dataset, feat_dim, to_homo=False)
     features = features.to(device)
 
     @empty_cache
@@ -231,6 +230,7 @@ def profile(dataset, feat_dim, out_dim, repeat=1000):
         " using the latest version of dgl and pyg"
     )
     if False:
+        g_hetero, _ = load_data(dataset, feat_dim, to_homo=False)
         run_dgl_hetero(g_hetero, features)
         run_pyg_slice(g, features)
 

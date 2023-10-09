@@ -14,13 +14,11 @@ torch.classes.load_library(DGL_PATH + "libgraphiler.so")
 
 
 def load_data(name, feat_dim=DEFAULT_DIM, prepare=True, to_homo=True):
-
     g = load_data_as_dgl_graph(name)
 
     node_feats = torch.rand(
         [sum(g.number_of_nodes(ntype) for ntype in g.ntypes), feat_dim]
     )
-
     if name in hetero_dataset:
         g, type_pointers = prepare_hetero_graph_simplified(g, node_feats)
         if to_homo:
